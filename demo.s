@@ -178,14 +178,16 @@ check_up:
   AND #BTN_UP
   BEQ check_down
   lda #3 ; set direction for up
+  STA player_dir
   DEC pos_y
 check_down:
   LDA pad1
   AND #BTN_DOWN
   BEQ done_checking
   inc pos_y
+  lda #4 ; set direction for down
+  STA player_dir
   
-
 done_checking:
   RTS
   ; testing
