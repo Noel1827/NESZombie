@@ -9,6 +9,7 @@ PPUDATA   = $2007
 OAMADDR   = $2003
 OAMDMA    = $4014
 OAMDATA = $2004
+sprite_buff_addr = $0200
 
 CONTROLLER1 = $4016
 CONTROLLER2 = $4017
@@ -43,9 +44,7 @@ BTN_A       = %10000000
 .segment "STARTUP"
 
 .segment "ZEROPAGE"
-; Address trackers
-curr_oam_addr: .res 1
-
+sprite_offset: .res 1
 ; Args for render_sprite subroutine
 pos_x: .res 1
 pos_y: .res 1
@@ -95,11 +94,10 @@ vblankwait2:
   bpl vblankwait2
 
 main:
-
   clear_oam:
     ldx #0
     loop_clear_oam:
-      lda #$FF ; load byte x of sprite list
+      lda #$FA ; load byte x of sprite list
       sta OAMDATA ; 
       inx
       cpx #255
@@ -108,11 +106,8 @@ main:
   lda #$50
   sta pos_x
   sta pos_y
-
   lda #$02
   sta tile_num
-
-
 
   load_palettes:
     lda PPUSTATUS
@@ -139,8 +134,6 @@ forever:
   
   JSR read_controller1
   JSR update_player
-  JSR render_sprite
-
   jmp forever
 
 read_controller1:
@@ -162,12 +155,9 @@ get_buttons:
                   ; onto right side of pad1
                   ; and leftmost 0 of pad1 into carry flag
   BCC get_buttons ; Continue until original "1" is in carry flag
-
   RTS
 
 update_player:
-
-
   LDA pad1 ; load button presses
   AND #BTN_LEFT ; filter out all but left 
   BEQ check_right ; if result equals 0, left not pressed.
@@ -187,95 +177,99 @@ check_up:
   LDA pad1
   AND #BTN_UP
   BEQ check_down
+  lda #3 ; set direction for up
   DEC pos_y
 check_down:
   LDA pad1
   AND #BTN_DOWN
   BEQ done_checking
-
+  inc pos_y
+  
 
 done_checking:
-  ; all done, clean up and return
   RTS
-
+  ; testing
+  ; lista de tiles en byte array
 render_sprite:
   lda PPUSTATUS
 
-  ; Load current OAM address
-  lda curr_oam_addr
-  sta OAMADDR
-
   ; Write first tile of selected sprite
+  ldx sprite_offset * direction +8
+  ; First tile
   lda pos_y
-  sta OAMDATA
+  sta $0200,X 
+  inx
   lda tile_num
-  sta OAMDATA
+  sta $0200,X
+  inx
   lda #$00
-  sta OAMDATA
+  sta $0200,X
+  inx
   lda pos_x
-  sta OAMDATA
+  sta $0200,X
+  inx
 
-  ; Write second tile of selected sprite
-  ; Increase pos_y by 8
+  ; Second tile
   lda pos_y
   clc
   adc #8
-  sta OAMDATA
-  ; Increase tile_num by 16 (next tile down) 
+  sta $0200,X
+  inx
   lda tile_num
   clc
   adc #16
-  sta OAMDATA
-  ; Default palette
-  lda $00
-  sta OAMDATA
-  ; Leave x untouched, tile directly under 1st tile has same x coordinate
+  sta $0200,X
+  inx
+  lda #$00
+  sta $0200,X
+  inx 
   lda pos_x
-  sta OAMDATA
+  sta $0200,X
+  inx
 
-  ; Write third tile of selected sprite (directly right of 1st tile)
-  ; pos_y is the same as the first tile
+  ; Third tile
   lda pos_y
-  sta OAMDATA
-  ; Increase tile_num by 1 (next tile to the right)
+  sta $0200,X
+  inx
   lda tile_num
   clc
   adc #1
-  sta OAMDATA
-  ; Default palette
-  lda $00
-  sta OAMDATA
-  ; Increase x by 8
+  sta $0200,X
+  inx
+  lda #$00
+  sta $0200,X
+  inx
   lda pos_x
   clc
   adc #8
-  sta OAMDATA
+  sta $0200,X
+  inx
 
-  ; Write fourth tile of selected sprite (directly right of 2nd tile)
-  ; pos_y is increased by 8
+  ; Fourth tile
   lda pos_y
   clc
   adc #8
-  sta OAMDATA
-  ; Increase tile_num by 16 + 1 (next tile to the right)
+  sta $0200,X
+  inx
   lda tile_num
   clc
   adc #17
-  sta OAMDATA
-  ; Default palette
-  lda $00
-  sta OAMDATA
-  ; Increase x by 8
+  sta $0200,X
+  inx
+  lda #$00
+  sta $0200,X
+  inx
   lda pos_x
   clc
   adc #8
-  sta OAMDATA
+  sta $0200,X
 
-  ; Save new OAM address
-  lda curr_oam_addr
+  ; add 4 to address offset
+  lda sprite_offset
   clc
   adc #4
-  sta curr_oam_addr
+  sta sprite_offset
+
   rts
 
 nmi:
@@ -284,13 +278,18 @@ nmi:
   lda #$00
   sta PPUSCROLL
 
-  inc nmi_counter ; Increment nmi_counter
-  lda nmi_counter ; Load nmi_counter
-  cmp #60 ; Compare nmi_counter to 60
-  bne skip_reset_timer ; If nmi_counter is not 60, skip resetting it
-  lda #$00 ; Reset nmi_counter to 0
-  sta nmi_counter ; Store 0 in nmi_counter
-  skip_reset_timer:
+  LDA #$02
+  STA OAMDMA
+  JSR render_sprite
+
+  ; inc nmi_counter ; Increment nmi_counter
+  ; lda nmi_counter ; Load nmi_counter
+  ; cmp #60 ; Compare nmi_counter to 60
+  ; bne skip_reset_timer ; If nmi_counter is not 60, skip resetting it
+  ;  ; If nmi_counter is 60, render sprite
+  ; lda #$00 ; Reset nmi_counter to 0
+  ; sta nmi_counter ; Store 0 in nmi_counter
+  ; skip_reset_timer:
   rti
 
 palettes:
