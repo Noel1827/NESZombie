@@ -49,13 +49,13 @@ available_oam: .res 1
 
 ; Animation vars
 direction: .res 1 ; 0 = up, 1 = down, 2 = left, 3 = right
-animState: .res 1 ; 0 = first frame, 1 = second frame, 2 = third frame
+animState: .res 1 ; 0 = first frame, 1 = second frame
 frameCounter: .res 1 ; Counter for frames
 vblank_flag: .res 1 ; Flag for vblank
 
 ; Args for render_sprite subroutine
-pos_x: .res 1
-pos_y: .res 1
+x_coord: .res 1
+y_coord: .res 1
 tile_num: .res 1
 
 
@@ -108,17 +108,6 @@ main:
       inx
       cpx #255
       bne loop_clear_oam
-      
-  lda #$10
-  sta pos_x
-  sta pos_y
-
-  lda #$02
-  sta tile_num
-  JSR sprites_loop
-
-  ; JSR read_controller1
-  ; JSR update_player
 
   load_palettes:
     lda PPUSTATUS
@@ -196,7 +185,11 @@ nmi:
   rti
 
 render_sprite:
-  lda PPUSTATUS
+    pha
+    txa
+    pha
+    tya
+    pha
   ; Render first tile of the sprite
     jsr render_tile_subroutine  ; Call render_tile subroutine
 
@@ -236,7 +229,11 @@ render_sprite:
     dey
     sty render_tile
     jsr render_tile_subroutine  ; Call render_tile subroutine
-
+    pla
+    tay
+    pla
+    tax
+    pla
     RTS
 ; Render a single tile of the sprite
 render_tile_subroutine:
@@ -275,9 +272,9 @@ update_sprites:
 
     ; Update sprites
 
-    ; If animState is 2, reset animState to 0 and reset sprites to first frame
+    ; If animState is 1, reset animState to 0 and reset sprites to first frame
     lda animState
-    cmp #2
+    cmp #1
     bne skip_reset_animState
 
     ; Reset animState to 0
@@ -285,16 +282,16 @@ update_sprites:
     sta animState
 
     ; Reset sprites to first frame
-    ldx #9 ; offset for buffer, where the tile data for tile 1 is stored
+    ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
     ldy #0
     reset_sprites_loop:
     lda SPRITE_BUFFER, x ; Load tile data for tile y
     clc
-    sbc #3 ; Add 2 to the tile data to change the sprite to the next frame
+    sbc #4 ; Add 2 to the tile data to change the sprite to the next frame
     sta SPRITE_BUFFER, x ; Store the updated tile data back to the buffer
     txa ; Load x to a
     clc
-    adc #4 ; Add 4 to x to move to the next tile data
+    adc #1 ; Add 4 to x to move to the next tile data
     tax ; Store the updated x back to x
     iny ; Increase y by 1
     cpy #16
@@ -310,7 +307,7 @@ update_sprites:
     adc #1
     sta animState
 
-    ldx #9 ; offset for buffer, where the tile data for tile 1 is stored
+    ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
     ldy #0
     update_sprites_loop:
     lda SPRITE_BUFFER, x ; Load tile data for tile y
