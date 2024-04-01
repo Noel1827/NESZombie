@@ -94,22 +94,6 @@ vblankwait2:
   bit PPUSTATUS
   bpl vblankwait2
 
-nmi:
-  lda #$00
-  sta PPUSCROLL
-  lda #$00
-  sta PPUSCROLL
-
-  inc nmi_counter ; Increment nmi_counter
-  lda nmi_counter ; Load nmi_counter
-  cmp #60 ; Compare nmi_counter to 60
-  bne skip_reset_timer ; If nmi_counter is not 60, skip resetting it
-  lda #$00 ; Reset nmi_counter to 0
-  sta nmi_counter ; Store 0 in nmi_counter
-  skip_reset_timer:
-
-  rti
-
 main:
 
   clear_oam:
@@ -127,6 +111,9 @@ main:
 
   lda #$02
   sta tile_num
+
+
+
   load_palettes:
     lda PPUSTATUS
     lda #$3f
@@ -149,9 +136,11 @@ enable_rendering:
   sta PPUMASK
 
 forever:
-  ; JSR read_controller1
-  ; JSR update_player
-  ; JSR render_sprite
+  
+  JSR read_controller1
+  JSR update_player
+  JSR render_sprite
+
   jmp forever
 
 read_controller1:
@@ -208,18 +197,6 @@ check_down:
 done_checking:
   ; all done, clean up and return
   RTS
-
-first_sprite:
-  lda sprites, x        ; Load Y position of sprite into A
-  sta pos_y             ; Store Y position in pos_y
-  lda sprites+1, x      ; Load tile number of sprite into A
-  sta tile_num          ; Store tile number in tile_num
-  lda sprites+3, x      ; Load X position of sprite (skipping attribute byte)
-  sta pos_x             ; Store X position in pos_x
-
-  jsr render_sprite     ; Call the subroutine to render the sprite
-
-
 
 render_sprite:
   lda PPUSTATUS
@@ -301,7 +278,20 @@ render_sprite:
   sta curr_oam_addr
   rts
 
+nmi:
+  lda #$00
+  sta PPUSCROLL
+  lda #$00
+  sta PPUSCROLL
 
+  inc nmi_counter ; Increment nmi_counter
+  lda nmi_counter ; Load nmi_counter
+  cmp #60 ; Compare nmi_counter to 60
+  bne skip_reset_timer ; If nmi_counter is not 60, skip resetting it
+  lda #$00 ; Reset nmi_counter to 0
+  sta nmi_counter ; Store 0 in nmi_counter
+  skip_reset_timer:
+  rti
 
 palettes:
 ; background palette
