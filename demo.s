@@ -1,26 +1,26 @@
 
-; ; Noel Andres Vargas Padilla 801-19-7297
-; PPUCTRL   = $2000
-; PPUSCROLL = $2005
-; PPUMASK   = $2001
-; PPUSTATUS = $2002
-; PPUADDR   = $2006
-; PPUDATA   = $2007
-; OAMADDR   = $2003
-; OAMDMA    = $4014
-; OAMDATA = $2004
+; Noel Andres Vargas Padilla 801-19-7297
+PPUCTRL   = $2000
+PPUSCROLL = $2005
+PPUMASK   = $2001
+PPUSTATUS = $2002
+PPUADDR   = $2006
+PPUDATA   = $2007
+OAMADDR   = $2003
+OAMDMA    = $4014
+OAMDATA = $2004
 
-; CONTROLLER1 = $4016
-; CONTROLLER2 = $4017
+CONTROLLER1 = $4016
+CONTROLLER2 = $4017
 
-; BTN_RIGHT   = %00000001
-; BTN_LEFT    = %00000010
-; BTN_DOWN    = %00000100
-; BTN_UP      = %00001000
-; BTN_START   = %00010000
-; BTN_SELECT  = %00100000
-; BTN_B       = %01000000
-; BTN_A       = %10000000
+BTN_RIGHT   = %00000001
+BTN_LEFT    = %00000010
+BTN_DOWN    = %00000100
+BTN_UP      = %00001000
+BTN_START   = %00010000
+BTN_SELECT  = %00100000
+BTN_B       = %01000000
+BTN_A       = %10000000
 
 
 
@@ -413,8 +413,6 @@ tile_num: .res 1
 ; Main code segment for the program
 .segment "CODE"
 
-.include "constants.inc"
-
 reset:
   sei		; disable IRQs
   cld		; disable decimal mode
@@ -656,25 +654,25 @@ sprites:
 .byte $08, $18, $00, $30
 .byte $08, $19, $00, $38
 
-.byte $00, $22, $00, $40
-.byte $00, $23, $00, $48
-.byte $08, $32, $00, $40
-.byte $08, $33, $00, $48
+.byte $18, $22, $00, $00
+.byte $18, $23, $00, $08
+.byte $20, $32, $00, $00
+.byte $20, $33, $00, $08
 
-.byte $00, $24, $00, $50
-.byte $00, $25, $00, $58
-.byte $08, $34, $00, $50
-.byte $08, $35, $00, $58
+.byte $18, $24, $00, $10
+.byte $18, $25, $00, $18
+.byte $20, $34, $00, $10
+.byte $20, $35, $00, $18
 
-.byte $00, $26, $00, $60
-.byte $00, $27, $00, $68
-.byte $08, $36, $00, $60
-.byte $08, $37, $00, $68
+.byte $18, $26, $00, $20
+.byte $18, $27, $00, $28
+.byte $20, $36, $00, $20
+.byte $20, $37, $00, $28
 
-.byte $00, $28, $00, $70
-.byte $00, $29, $00, $78
-.byte $08, $38, $00, $70
-.byte $08, $39, $00, $78
+.byte $18, $28, $00, $30
+.byte $18, $29, $00, $38
+.byte $20, $38, $00, $30
+.byte $20, $39, $00, $38
 
 ; Character memory
 .segment "CHARS"
