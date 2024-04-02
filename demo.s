@@ -87,9 +87,11 @@ main:
       cpx #255
       bne loop_clear_oam
       
-  lda #$10
-  sta pos_x
-  sta pos_y
+  ldx #100
+  stx pos_x
+  ldy #60
+  sty pos_y
+
   ; num of sprites
   ldx #08
   ; num of sprites per row
@@ -130,20 +132,20 @@ sprites_loop:
 loop_start:
   lda sprites, x        ; Load Y position of sprite into A
   sta pos_y             ; Store Y position in pos_y
-  lda sprites+1, x      ; Load tile number of sprite into A
+  lda sprites+1, x      
   sta tile_num          ; Store tile number in tile_num
-  lda sprites+3, x      ; Load X position of sprite (skipping attribute byte)
+  lda sprites+3, x      
   sta pos_x             ; Store X position in pos_x
 
   jsr render_sprite     ; Call the subroutine to render the sprite
 
   iny                   ; Increment sprite row counter
-  cpy #4                ; Check if 4 sprites have been rendered in the current row
+  cpy #4               
   bne skip_row_adjust   ; If not, skip the Y position adjustment
 
   ; Adjust Y position for next row of sprites
   lda pos_y             ; Get the current Y position
-  clc                   ; Clear carry flag for addition
+  clc                  
   adc #16               ; Add 16 to Y position (moving down after a row of 4 sprites)
   sta pos_y             ; Update pos_y for the next row
 
@@ -259,45 +261,46 @@ palettes:
 .byte $00, $00, $00, $00
 
 sprites:
-.byte $00, $02, $00, $00
-.byte $00, $03, $00, $08
-.byte $08, $12, $00, $00
-.byte $08, $13, $00, $08
+.byte $64, $02, $00, $64  
+.byte $64, $03, $00, $6C 
+.byte $6C, $12, $00, $64 
+.byte $6C, $13, $00, $6C 
 
-.byte $00, $04, $00, $10
-.byte $00, $05, $00, $18
-.byte $08, $14, $00, $10
-.byte $08, $15, $00, $18
+.byte $64, $04, $00, $74 
+.byte $64, $05, $00, $7C 
+.byte $6C, $14, $00, $74
+.byte $6C, $15, $00, $7C 
 
-.byte $00, $06, $00, $20
-.byte $00, $07, $00, $28
-.byte $08, $16, $00, $20
-.byte $08, $17, $00, $28
+.byte $64, $06, $00, $84 
+.byte $64, $07, $00, $8C
+.byte $6C, $16, $00, $84
+.byte $6C, $17, $00, $8C
 
-.byte $00, $08, $00, $30
-.byte $00, $09, $00, $38
-.byte $08, $18, $00, $30
-.byte $08, $19, $00, $38
+.byte $64, $08, $00, $94
+.byte $64, $09, $00, $9C
+.byte $6C, $18, $00, $94
+.byte $6C, $19, $00, $9C
 
-.byte $18, $22, $00, $00
-.byte $18, $23, $00, $08
-.byte $20, $32, $00, $00
-.byte $20, $33, $00, $08
+.byte $74, $22, $00, $64 ; Adjusting Y to 116 (slightly down), X back to 100
+.byte $74, $23, $00, $6C
+.byte $7C, $32, $00, $64 ; Y to 124, keeping X aligned
+.byte $7C, $33, $00, $6C
 
-.byte $18, $24, $00, $10
-.byte $18, $25, $00, $18
-.byte $20, $34, $00, $10
-.byte $20, $35, $00, $18
+.byte $74, $24, $00, $74
+.byte $74, $25, $00, $7C
+.byte $7C, $34, $00, $74
+.byte $7C, $35, $00, $7C
 
-.byte $18, $26, $00, $20
-.byte $18, $27, $00, $28
-.byte $20, $36, $00, $20
-.byte $20, $37, $00, $28
+.byte $74, $26, $00, $84
+.byte $74, $27, $00, $8C
+.byte $7C, $36, $00, $84
+.byte $7C, $37, $00, $8C
 
-.byte $18, $28, $00, $30
-.byte $18, $29, $00, $38
-.byte $20, $38, $00, $30
-.byte $20, $39, $00, $38
+.byte $74, $28, $00, $94
+.byte $74, $29, $00, $9C
+.byte $7C, $38, $00, $94
+.byte $7C, $39, $00, $9C
+
 
 ; Character memory
 .segment "CHARS"
