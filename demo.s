@@ -9,18 +9,6 @@ OAMADDR   = $2003
 OAMDMA    = $4014
 OAMDATA = $2004
 
-CONTROLLER1 = $4016
-CONTROLLER2 = $4017
-
-BTN_RIGHT   = %00000001
-BTN_LEFT    = %00000010
-BTN_DOWN    = %00000100
-BTN_UP      = %00001000
-BTN_START   = %00010000
-BTN_SELECT  = %00100000
-BTN_B       = %01000000
-BTN_A       = %10000000
-
 .segment "HEADER"
   ; .byte "NES", $1A      ; iNES header identifier
   .byte $4E, $45, $53, $1A
@@ -110,9 +98,6 @@ main:
   lda #$02
   sta tile_num
   JSR sprites_loop
-
-  ; JSR read_controller1
-  ; JSR update_player
 
   load_palettes:
     lda PPUSTATUS
