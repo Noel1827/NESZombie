@@ -10,17 +10,6 @@ OAMDMA    = $4014
 OAMDATA = $2004
 SPRITE_BUFFER = $0200
 
-CONTROLLER1 = $4016
-CONTROLLER2 = $4017
-
-BTN_RIGHT   = %00000001
-BTN_LEFT    = %00000010
-BTN_DOWN    = %00000100
-BTN_UP      = %00001000
-BTN_START   = %00010000
-BTN_SELECT  = %00100000
-BTN_B       = %01000000
-BTN_A       = %10000000
 
 .segment "HEADER"
   ; .byte "NES", $1A      ; iNES header identifier
@@ -41,24 +30,22 @@ BTN_A       = %10000000
 .segment "STARTUP"
 
 .segment "ZEROPAGE"
-; Args for render_sprite subroutine
+; Args for prepare_sprites subroutine
 render_x: .res 1
 render_y: .res 1
-render_tile: .res 1
-available_oam: .res 1
 
-; Animation vars
-direction: .res 1 ; 0 = up, 1 = down, 2 = left, 3 = right
-animState: .res 1 ; 0 = first frame, 1 = second frame
-frameCounter: .res 1 ; Counter for frames
+render_tile: .res 1
+oam_offset: .res 1
+
+; Animation state for sprites
+count_frames: .res 1 
+animation: .res 1 
 vblank_flag: .res 1 ; Flag for vblank
 
-; Args for render_sprite subroutine
-x_coord: .res 1
-y_coord: .res 1
+; Args for prepare_sprites subroutine
+pos_x: .res 1
+pos_y: .res 1
 tile_num: .res 1
-
-
 
 ; Main code segment for the program
 .segment "CODE"
@@ -99,7 +86,6 @@ vblankwait2:
   bpl vblankwait2
 
 main:
-
   clear_oam:
     ldx #0
     loop_clear_oam:
@@ -125,27 +111,29 @@ main:
       bne @loop
 
     ldx #100
-    stx x_coord
+    stx pos_x
     ldy #90
-    sty y_coord
+    sty pos_y
 
-    ldx #0
-    render_initial_sprites_loop:
-        lda x_coord
-        sta render_x
-        lda y_coord
-        sta render_y
-        lda left_tank_tiles, x
+    ldy #0
+    prepare_spritess_loop:
+        lda pos_y
+        sta render_y ; Store y position of the sprite
+        lda pos_x
+        sta render_x ; Store x position of the sprite
+        lda left_tank_tiles, y ; Load tile number of the sprite
+
         sta render_tile
-        jsr render_sprite
-        inx
-        lda x_coord
+        jsr prepare_sprites
+
+        iny
+        lda pos_x
         clc
         adc #16
-        sta x_coord
+        sta pos_x
 
-        cpx #4
-        bne render_initial_sprites_loop
+        cpy #4
+        bne prepare_spritess_loop
 
 enable_rendering:
   lda #%10000000	; Enable NMI
@@ -163,18 +151,18 @@ nmi:
   sta vblank_flag
 
   ; Start OAMDMA transfer
-  lda #$02          ; High byte of $0200 where SPRITE_BUFFER is located.
-  sta OAMDMA         ; Writing to OAMDMA register initiates the transfer.
+  lda #$02         
+  sta OAMDMA        
 
 
-  lda frameCounter ; Load frameCounter
-  cmp #30 ; Compare frameCounter to 60
-  bne skip_reset_timer ; If frameCounter is not 60, skip resetting it
-  lda #$00 ; Reset frameCounter to 0
-  sta frameCounter ; Store 0 in frameCounter
+  lda count_frames ; Load count_frames
+  cmp #30 ; Compare count_frames to 30
+  bne jmp_rst_timer ; If count_frames is not 60, skip resetting it
+  lda #$00 ; Reset count_frames to 0
+  sta count_frames ; Store 0 in count_frames
 
-  skip_reset_timer: ; Skip resetting frameCounter and render_sprite subroutine
-  inc frameCounter ; Increase frameCounter by 1
+  jmp_rst_timer: ; Skip resetting count_frames and prepare_sprites subroutine
+  inc count_frames ; Increase count_frames by 1
 
   ; Reset scroll position
   lda #$00
@@ -184,14 +172,14 @@ nmi:
 
   rti
 
-render_sprite:
+prepare_sprites:
     pha
     txa
     pha
     tya
     pha
-  ; Render first tile of the sprite
-    jsr render_tile_subroutine  ; Call render_tile subroutine
+  
+    jsr store_in_sprite_buffer  
 
     ; Render second tile of the sprite
     lda render_x
@@ -200,9 +188,9 @@ render_sprite:
     sta render_x ; x = x + 8
     lda render_tile
     clc
-    adc #$01
+    adc #$01 ; Load next tile of the sprite
     sta render_tile
-    jsr render_tile_subroutine  ; Call render_tile subroutine
+    jsr store_in_sprite_buffer  
 
     ; Render third tile of the sprite
     lda render_y
@@ -214,13 +202,12 @@ render_sprite:
     clc
     adc #$10
     sta render_tile
-    jsr render_tile_subroutine  ; Call render_tile subroutine
+    jsr store_in_sprite_buffer  
 
     ; Render fourth tile of the sprite
-    ; No need to update y since it's already at the bottom of the sprite
     ; Only update x to move left by 8 pixels
     lda render_x
-    sbc #8 ; WHY DOES THIS RESULT IS 0X4F (0X58 - 8) ITS SUPPOSED TO BE 0X50
+    sbc #8 
     tay
     iny 
     sty render_x ; x = x - 8
@@ -228,16 +215,18 @@ render_sprite:
     ldy render_tile 
     dey
     sty render_tile
-    jsr render_tile_subroutine  ; Call render_tile subroutine
+    jsr store_in_sprite_buffer  
+
     pla
     tay
     pla
     tax
     pla
+    
     RTS
 ; Render a single tile of the sprite
-render_tile_subroutine:
-    ldx available_oam ; Offset for OAM buffer
+store_in_sprite_buffer:
+    ldx oam_offset ; Offset for OAM buffer
 
     lda render_y
     sta SPRITE_BUFFER, x ; Store y position of the sprite
@@ -255,13 +244,13 @@ render_tile_subroutine:
     sta SPRITE_BUFFER, x
     inx
 
-    stx available_oam ; Update available_oam to the next available OAM buffer index`
+    stx oam_offset ; Update oam_offset to the next available OAM buffer index`
 
     rts
   
 update_sprites:
-    ; Exit subroutine if frameCounter is not 29
-    lda frameCounter
+    ; Exit subroutine if count_frames is not 29
+    lda count_frames
     cmp #29
     bne skip_update_sprites
 
@@ -270,28 +259,26 @@ update_sprites:
     cmp #1
     bne skip_update_sprites
 
-    ; Update sprites
-
-    ; If animState is 1, reset animState to 0 and reset sprites to first frame
-    lda animState
+    ; If animation is 1, reset animation and reset sprites to first frame
+    lda animation
     cmp #1
-    bne skip_reset_animState
+    bne skip_reset_animation
 
-    ; Reset animState to 0
+    ; Reset animation 
     lda #$00
-    sta animState
+    sta animation
 
     ; Reset sprites to first frame
     ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
-    ldy #0
+    ldy #0 
     reset_sprites_loop:
     lda SPRITE_BUFFER, x ; Load tile data for tile y
     clc
-    sbc #4 ; Add 2 to the tile data to change the sprite to the next frame
+    sbc #1 ; Add 1 to the tile data to change the sprite to the next frame
     sta SPRITE_BUFFER, x ; Store the updated tile data back to the buffer
     txa ; Load x to a
     clc
-    adc #1 ; Add 4 to x to move to the next tile data
+    adc #4 ; Add 4 to x to move to the next tile data
     tax ; Store the updated x back to x
     iny ; Increase y by 1
     cpy #16
@@ -300,12 +287,12 @@ update_sprites:
     ; Skip updating sprites since we just reset them
     jmp skip_update_sprites
 
-    skip_reset_animState:
+    skip_reset_animation:
     ; Update animation state
-    lda animState
+    lda animation
     clc
     adc #1
-    sta animState
+    sta animation
 
     ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
     ldy #0
