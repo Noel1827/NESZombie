@@ -8,7 +8,7 @@ PPUDATA   = $2007
 OAMADDR   = $2003
 OAMDMA    = $4014
 OAMDATA = $2004
-SPRITE_BUFFER = $0200
+sprite_buffer = $0200
 
 
 .segment "HEADER"
@@ -229,19 +229,19 @@ store_in_sprite_buffer:
     ldx oam_offset ; Offset for OAM buffer
 
     lda render_y
-    sta SPRITE_BUFFER, x ; Store y position of the sprite
+    sta sprite_buffer, x ; Store y position of the sprite
     inx
 
     lda render_tile
-    sta SPRITE_BUFFER, x
+    sta sprite_buffer, x
     inx
 
     lda #$00
-    sta SPRITE_BUFFER, x
+    sta sprite_buffer, x
     inx
 
     lda render_x
-    sta SPRITE_BUFFER, x
+    sta sprite_buffer, x
     inx
 
     stx oam_offset ; Update oam_offset to the next available OAM buffer index`
@@ -272,10 +272,10 @@ update_sprites:
     ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
     ldy #0 
     reset_sprites_loop:
-    lda SPRITE_BUFFER, x ; Load tile data for tile y
+    lda sprite_buffer, x ; Load tile data for tile y
     clc
     sbc #1 ; Add 1 to the tile data to change the sprite to the next frame
-    sta SPRITE_BUFFER, x ; Store the updated tile data back to the buffer
+    sta sprite_buffer, x ; Store the updated tile data back to the buffer
     txa ; Load x to a
     clc
     adc #4 ; Add 4 to x to move to the next tile data
@@ -297,10 +297,10 @@ update_sprites:
     ldx #1 ; offset for buffer, where the tile data for tile 1 is stored
     ldy #0
     update_sprites_loop:
-    lda SPRITE_BUFFER, x ; Load tile data for tile y
+    lda sprite_buffer, x ; Load tile data for tile y
     clc
     adc #2 ; Add 2 to the tile data to change the sprite to the next frame
-    sta SPRITE_BUFFER, x ; Store the updated tile data back to the buffer
+    sta sprite_buffer, x ; Store the updated tile data back to the buffer
 
     txa ; Load x to a
     clc
