@@ -86,19 +86,7 @@ main:
       inx
       cpx #255
       bne loop_clear_oam
-      
-  ldx #100
-  stx pos_x
-  ldy #60
-  sty pos_y
 
-  ; num of sprites
-  ldx #08
-  ; num of sprites per row
-  ldy #04
-
-  lda #$02
-  sta tile_num
   JSR sprites_loop
 
   load_palettes:
@@ -138,22 +126,10 @@ loop_start:
   sta pos_x             ; Store X position in pos_x
 
   jsr render_sprite     ; Call the subroutine to render the sprite
-
-  iny                   ; Increment sprite row counter
-  cpy #4               
-  bne skip_row_adjust   ; If not, skip the Y position adjustment
-
-  ; Adjust Y position for next row of sprites
-  lda pos_y             ; Get the current Y position
-  clc                  
-  adc #16               ; Add 16 to Y position (moving down after a row of 4 sprites)
-  sta pos_y             ; Update pos_y for the next row
-
-skip_row_adjust: 
-  inx                   ; Move to the next byte in the sprite data
-  inx                   ; Skip the unused attribute byte
   inx
-  inx                   ; Completed one sprite, move to the next sprite data
+  inx
+  inx
+  inx
   cpx #(4*32)           ; Check if we've reached the end of the sprites data (4 bytes * 32 sprites)
   bne loop_start        ; If not, loop again
   rts                   
@@ -281,9 +257,9 @@ sprites:
 .byte $6C, $18, $00, $94
 .byte $6C, $19, $00, $9C
 
-.byte $74, $22, $00, $64 ; Adjusting Y to 116 (slightly down), X back to 100
+.byte $74, $22, $00, $64 
 .byte $74, $23, $00, $6C
-.byte $7C, $32, $00, $64 ; Y to 124, keeping X aligned
+.byte $7C, $32, $00, $64 
 .byte $7C, $33, $00, $6C
 
 .byte $74, $24, $00, $74
