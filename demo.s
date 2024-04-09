@@ -412,15 +412,13 @@ update_player:
 
 
     end_update:
-    ; lda direction
-    ; cmp changed_direction ; Check if the direction has changed
-    ; beq no_change_direction ; If the direction has not changed, skip changing the sprite
-
-    ; ; Change the sprite to the new direction
-    ; jsr NOAnimated_sprite ; Change the sprite to the new ze
-    ; lda direction 
-    ; sta changed_direction ; Update changed_direction to the new direction
-    ; no_change_direction:
+    lda direction
+    cmp changed_direction ; Check if the direction has changed
+    beq no_change_direction ; If the direction has not changed, skip changing the sprite
+    lda direction 
+    sta changed_direction ; Update changed_direction to the new direction
+    jsr NOAnimated_sprite 
+    no_change_direction:
     rts
 
 NOAnimated_sprite:
