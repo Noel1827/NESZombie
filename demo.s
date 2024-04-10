@@ -151,9 +151,6 @@ main:
     stx pos_x
     ldy #90
     sty pos_y
-
-  
-
     ldy #0
 
     lda pos_y
@@ -167,7 +164,7 @@ main:
 
 
 enable_rendering:
-  lda #%10000000	; Enable NMI
+  lda #%10010000	; Enable NMI
   sta PPUCTRL
   lda #%00010110; Enable background and sprite rendering in PPUMASK.
   sta PPUMASK
