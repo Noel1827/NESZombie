@@ -131,29 +131,47 @@ main:
             cpx #12
             bne @loop2
         
-        ; lda #$22
-        ; sta PPUADDR
-        ; lda #$cc
-        ; sta PPUADDR
+        lda #$20
+        sta PPUADDR
+        lda #$cc
+        sta PPUADDR
 
-        ; @loop3:
-        ;     lda name_table, x
-        ;     sta PPUDATA
-        ;     inx
-        ;     cpx #24
-        ;     bne @loop3
+        @loop3:
+            lda name_table, x
+            sta PPUDATA
+            inx
+            cpx #18
+            bne @loop3
         
-        ; lda #$22
-        ; sta PPUADDR
-        ; lda #$ec
-        ; sta PPUADDR
+        lda #$20
+        sta PPUADDR
+        lda #$ec
+        sta PPUADDR
 
-        ; @loop4:
-        ;     lda name_table, x
-        ;     sta PPUDATA
-        ;     inx
-        ;     cpx #32
-        ;     bne @loop4     
+        @loop4:
+            lda name_table, x
+            sta PPUDATA
+            inx
+            cpx #24
+            bne @loop4  
+
+  load_attributes:
+      lda PPUSTATUS
+      lda #$23
+      sta PPUADDR
+      lda #$cb
+      sta PPUADDR
+
+      lda #%10010100
+      sta PPUDATA
+
+      lda #$23
+      sta PPUADDR
+      lda #$cc
+      sta PPUADDR
+
+      lda #%10010000
+      sta PPUDATA   
 
 enable_rendering:
   lda #%10010000	; Enable NMI
@@ -276,13 +294,13 @@ nmi:
 
 palettes:
 ; background palette
-.byte $0F, $16, $13, $37
-.byte $00, $00, $00, $00
-.byte $00, $00, $00, $00
+.byte $00, $20, $15, $06
+.byte $00, $21, $00, $10
+.byte $00, $11, $01, $26
 .byte $00, $00, $00, $00
 
 ; sprite palette
-.byte $0F, $16, $13, $37
+.byte $0F, $1C, $2C, $1A
 .byte $00, $00, $00, $00
 .byte $00, $00, $00, $00
 .byte $00, $00, $00, $00
@@ -290,6 +308,8 @@ palettes:
 name_table:
 .byte $02, $03, $04, $05, $06, $07
 .byte $12, $13, $14, $15, $16, $17
+.byte $22, $23, $24, $25, $06, $07
+.byte $32, $33, $34, $35, $16, $17
 
 sprites:
 .byte $64, $02, $00, $64  
@@ -336,3 +356,4 @@ sprites:
 ; Character memory
 .segment "CHARS"
 .incbin "zombies.chr"
+.incbin "background.chr"
