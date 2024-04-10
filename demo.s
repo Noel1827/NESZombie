@@ -559,7 +559,7 @@ palettes:
 .byte $00, $00, $00, $00
 
 ; sprite palette
-.byte $0F, $16, $13, $37
+.byte $0F, $1C, $2C, $1A
 .byte $00, $00, $00, $00
 .byte $00, $00, $00, $00
 .byte $00, $00, $00, $00
@@ -578,4 +578,4 @@ left_tank_tiles:
 
 ; Character memory
 .segment "CHARS"
-.incbin "tanks.chr"
+.incbin "zombies.chr"
