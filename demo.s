@@ -553,9 +553,9 @@ move_player_right:
 
 palettes:
 ; background palette
-.byte $0F, $16, $13, $37
-.byte $00, $00, $00, $00
-.byte $00, $00, $00, $00
+.byte $0F, $20, $00, $00 ; spiderweb
+.byte $00, $2D, $21, $00 ; diamond brick color
+.byte $00, $10, $00, $00 ; brick color
 .byte $00, $00, $00, $00
 
 ; sprite palette
