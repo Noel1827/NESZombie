@@ -104,10 +104,61 @@ main:
       cpx #$20
       bne @loop
 
+  load_name_table:
+        lda PPUSTATUS
+        lda #$20
+        sta PPUADDR
+        lda #$8C
+        sta PPUADDR
+
+        ldx #$00
+        @loop1:
+            lda name_table, x
+            sta PPUDATA
+            inx
+            cpx #$06
+            bne @loop1
+        
+        lda #$20
+        sta PPUADDR
+        lda #$ac
+        sta PPUADDR
+
+        @loop2:
+            lda name_table, x
+            sta PPUDATA
+            inx
+            cpx #12
+            bne @loop2
+        
+        ; lda #$22
+        ; sta PPUADDR
+        ; lda #$cc
+        ; sta PPUADDR
+
+        ; @loop3:
+        ;     lda name_table, x
+        ;     sta PPUDATA
+        ;     inx
+        ;     cpx #24
+        ;     bne @loop3
+        
+        ; lda #$22
+        ; sta PPUADDR
+        ; lda #$ec
+        ; sta PPUADDR
+
+        ; @loop4:
+        ;     lda name_table, x
+        ;     sta PPUDATA
+        ;     inx
+        ;     cpx #32
+        ;     bne @loop4     
+
 enable_rendering:
-  lda #%10000000	; Enable NMI
+  lda #%10010000	; Enable NMI
   sta PPUCTRL
-  lda #%00010110; Enable background and sprite rendering in PPUMASK.
+  lda #%00011110; Enable background and sprite rendering in PPUMASK.
   sta PPUMASK
 
 forever:
@@ -236,6 +287,10 @@ palettes:
 .byte $00, $00, $00, $00
 .byte $00, $00, $00, $00
 
+name_table:
+.byte $02, $03, $04, $05, $06, $07
+.byte $12, $13, $14, $15, $16, $17
+
 sprites:
 .byte $64, $02, $00, $64  
 .byte $64, $03, $00, $6C 
@@ -280,4 +335,4 @@ sprites:
 
 ; Character memory
 .segment "CHARS"
-.incbin "tanks.chr"
+.incbin "zombies.chr"
