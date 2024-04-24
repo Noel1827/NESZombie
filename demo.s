@@ -179,49 +179,6 @@ stx changed_direction
     sta render_tile
     jsr prepare_sprites
 
-; lda #$20
-; sta name_table_high
-; lda #$00
-; sta name_table_low
-
-; load_nametable:        
-
-; lda cave_bin_compressed, x ; Load tile data for tile y
-; inx
-; sta curr_compressed_byte ; Store the current byte in curr_compressed_byte
-; ; draw metatiles
-
-;   rts
-
-; render_metatile:
-;   ; Render the metatile
-;   lda num_tile
-;   sta PPUDATA
-;   ; store second tile in the nametable +1
-;   lda num_tile
-;   clc
-;   adc #1 ; Add 1 to the tile number
-;   sta PPUDATA
-
-;   lda name_table_low
-;   clc
-;   adc #32 
-;   sta name_table_low
-
-;   lda num_tile
-;   clc
-;   adc#$16 
-;   sta PPUDATA 
-
-;   rts
-
-enable_rendering:
-  lda #%10010000	; Enable NMI
-  sta PPUCTRL
-  lda #%00010110; Enable background and sprite rendering in PPUMASK.
-  sta PPUMASK
-
-
 load_nametable:
   ; Set stage to 1
   lda #1
@@ -279,17 +236,39 @@ load_nametable:
   sta NAMETABLE_PTR+1
   jsr load_attributes
 
+
+enable_rendering:
+
+; Set PPUSCROLL to 0,0
+  lda #$00
+  sta PPUSCROLL
+  lda #$00
+  sta PPUSCROLL
+
+  lda #%10000000	; Enable NMI
+  sta PPUCTRL
+  lda #%00011110
+  sta PPUMASK
+
 forever:
   lda vblank_flag
   cmp #1
   bne not_sync
     jsr handle_input
+    jsr handle_nametable_change
     jsr update_player
     jsr update_sprites
   not_sync:
       jmp forever
 
+
+
 nmi:
+    pha
+    txa
+    pha
+    tya
+    pha
   ; Set vblank_flag to 1
   lda #1
   sta vblank_flag
@@ -307,12 +286,31 @@ nmi:
   jmp_rst_timer: ; Skip resetting count_frames and prepare_sprites subroutine
   inc count_frames ; Increase count_frames by 1
 
+  scroll_screen_check:
+  ; TODO Stop at 255
+  lda SCROLL_POSITION_X
+  cmp #255
+  beq skip_scroll_increment
+
+  ; Increment PPUSCROLL to scroll the screen by 60 pxs/second 
+  inc SCROLL_POSITION_X
+
+  skip_scroll_increment:
+  lda SCROLL_POSITION_X
+  sta PPUSCROLL
+  lda SCROLL_POSITION_Y
+  sta PPUSCROLL
+
   ; Reset scroll position
   lda #$00
   sta PPUSCROLL
   lda #$00
   sta PPUSCROLL
-
+  pla
+  tay
+  pla
+  tax
+  pla
   rti
 
 prepare_sprites:
@@ -688,6 +686,218 @@ load_attributes:
   pla
 
   rts
+handle_nametable_change:
+    ; Save registers to stack
+    pha
+    txa
+    pha
+    tya
+    pha
+
+    ; If A was not pressed, skip to end
+    lda pad1
+    and #BTN_A
+    beq skip_nametable_change
+
+    ; Disable disable NMI and screen
+    lda PPUCTRL
+    and #%01111111
+    sta PPUCTRL
+    lda PPUMASK
+    and #%11100000
+    sta PPUMASK
+
+    vblankwait3:
+        bit PPUSTATUS
+        bpl vblankwait3
+
+
+    ; If in stage one, set to stage two
+    ; If in stage two, set to stage one
+    lda CURRENT_STAGE
+    cmp #1
+    beq set_stage_two
+    cmp #2
+    beq set_stage_one
+
+    set_stage_two:
+        lda #1
+        sta need_update_nametable
+        lda #2
+        sta CURRENT_STAGE
+        jmp call_update_nametable
+    
+    set_stage_one:
+        lda #1
+        sta need_update_nametable
+        lda #1
+        sta CURRENT_STAGE
+        jmp call_update_nametable
+    
+    call_update_nametable:
+        ; Set scroll position to 0,0
+        lda #$00
+        sta SCROLL_POSITION_X
+        sta SCROLL_POSITION_Y
+        jsr update_nametable
+
+    skip_nametable_change:
+
+    ; Restore NMI and screen
+    lda #$80
+    sta PPUCTRL
+    lda #$1e
+    sta PPUMASK
+
+    ; Pop registers from stack
+    pla
+    tay
+    pla
+    tax
+    pla
+    
+    rts
+
+update_nametable:
+    ; Save registers to stack
+    pha
+    txa
+    pha
+    tya
+    pha
+
+    ; Check if need_update_nametable is set
+    lda need_update_nametable
+    cmp #1
+    bne skip_update_nametable_intermediate
+
+    ; Select nametable based on CURRENT_STAGE
+    lda CURRENT_STAGE
+    cmp #1
+    beq select_stage_one
+
+    lda CURRENT_STAGE
+    cmp #2
+    beq select_stage_two
+
+    select_stage_one:
+        ; Load stage one left nametables
+        lda #<stage_one_left_packaged
+        sta SELECTED_NAMETABLE
+        lda #>stage_one_left_packaged
+        sta SELECTED_NAMETABLE+1
+
+        lda #$20
+        sta NAMETABLE_PTR
+        lda #$00
+        sta NAMETABLE_PTR+1
+        jsr write_nametable
+
+        ; Load stage one left attributes
+        lda #<stage_one_left_attributes
+        sta SELECTED_ATTRIBUTES
+        lda #>stage_one_left_attributes
+        sta SELECTED_ATTRIBUTES+1
+
+        lda #$23
+        sta NAMETABLE_PTR
+        lda #$C0
+        sta NAMETABLE_PTR+1
+        jsr load_attributes
+
+        ; Load stage one right nametables
+        lda #<stage_one_right_packaged
+        sta SELECTED_NAMETABLE
+        lda #>stage_one_right_packaged
+        sta SELECTED_NAMETABLE+1
+
+        lda #$24
+        sta NAMETABLE_PTR
+        lda #$00
+        sta NAMETABLE_PTR+1
+        jsr write_nametable
+
+        ; Load stage one right attributes
+        lda #<stage_one_right_attributes
+        sta SELECTED_ATTRIBUTES
+        lda #>stage_one_right_attributes
+        sta SELECTED_ATTRIBUTES+1
+
+        lda #$27
+        sta NAMETABLE_PTR
+        lda #$C0
+        sta NAMETABLE_PTR+1
+        jsr load_attributes
+
+        jmp skip_update_nametable
+
+
+    skip_update_nametable_intermediate:
+        jmp skip_update_nametable
+    
+    select_stage_two:
+        ; Load stage two left nametables
+        lda #<stage_two_left_packaged
+        sta SELECTED_NAMETABLE
+        lda #>stage_two_left_packaged
+        sta SELECTED_NAMETABLE+1
+
+        lda #$20
+        sta NAMETABLE_PTR
+        lda #$00
+        sta NAMETABLE_PTR+1
+        jsr write_nametable
+
+        ; Load stage two left attributes
+        lda #<stage_two_left_attributes
+        sta SELECTED_ATTRIBUTES
+        lda #>stage_two_left_attributes
+        sta SELECTED_ATTRIBUTES+1
+
+        lda #$23
+        sta NAMETABLE_PTR
+        lda #$C0
+        sta NAMETABLE_PTR+1
+        jsr load_attributes
+
+        ; Load stage two right nametables
+        lda #<stage_two_right_packaged
+        sta SELECTED_NAMETABLE
+        lda #>stage_two_right_packaged
+        sta SELECTED_NAMETABLE+1
+
+        lda #$24
+        sta NAMETABLE_PTR
+        lda #$00
+        sta NAMETABLE_PTR+1
+        jsr write_nametable
+
+        ; Load stage two right attributes
+        lda #<stage_two_right_attributes
+        sta SELECTED_ATTRIBUTES
+        lda #>stage_two_right_attributes
+        sta SELECTED_ATTRIBUTES+1
+
+        lda #$27
+        sta NAMETABLE_PTR
+        lda #$C0
+        sta NAMETABLE_PTR+1
+        jsr load_attributes
+
+        jmp skip_update_nametable
+
+    skip_update_nametable:
+    ; Set need_update_nametable to 0
+    lda #0
+    sta need_update_nametable
+
+    ; Pop registers from stack
+    pla
+    tay
+    pla
+    tax
+    pla
+    rts
 update_player:
 
     ; Assume no movement initially
@@ -878,12 +1088,13 @@ move_player_right:
         bne move_player_right_loop
     rts
 
+
 palettes:
 ; background palette
-.byte $0F, $20, $00, $00 ; spiderweb
-.byte $00, $2D, $21, $00 ; diamond brick color
-.byte $00, $10, $00, $00 ; brick color
-.byte $00, $00, $00, $00
+.byte $00, $20,$15,$06 ;
+.byte $0F, $21,$00,$10 
+.byte $00, $01, $12, $10 
+.byte $00, 15,06,10
 
 ; sprite palette
 .byte $0F, $1C, $2C, $1A
@@ -899,9 +1110,9 @@ sprites:
 
 ; Megatiles
 megatiles_stage_one:
-.byte $08, $02, $04, $06 ; Only $09 and $27 are collidable
+.byte $08, $04, $06, $02 
 megatiles_stage_two:
-.byte $0b, $0d, $2b, $2d
+.byte $08, $02, $04, $06
 
 left_tank_tiles:
       ; 0   1     2   3     4   5     6    7   8     9   A   B     C    D     E   F
@@ -932,5 +1143,4 @@ cave_tiles:
 .byte $03, $04, $06, $00
 ; Character memory
 .segment "CHARS"
-.incbin "zombies.chr"
 .incbin "Cave.chr"
