@@ -73,6 +73,22 @@ tile_num: .res 1
 
 pad1: .res 1
 
+; Nametable things
+; These are used for nametable subroutines
+NAMETABLE_PTR: .res 2
+SELECTED_NAMETABLE: .res 2
+SELECTED_ATTRIBUTES: .res 2
+SELECTED_TILE_WRITE: .res 1
+DECODED_BYTE_IDX: .res 1
+BYTE_TO_DECODE: .res 1
+BITS_FROM_BYTE: .res 1
+SCROLL_POSITION_X: .res 1
+SCROLL_POSITION_Y: .res 1
+MEGATILES_PTR: .res 2
+need_update_nametable: .res 1
+
+; Gameplay things
+CURRENT_STAGE: .res 1
 
 ; Main code segment for the program
 .segment "CODE"
@@ -122,7 +138,8 @@ main:
  stx count_frames
  stx isMoving
  stx vblank_flag
-  stx changed_direction
+stx changed_direction
+
   clear_oam:
     ldx #0
     loop_clear_oam:
@@ -162,12 +179,105 @@ main:
     sta render_tile
     jsr prepare_sprites
 
+; lda #$20
+; sta name_table_high
+; lda #$00
+; sta name_table_low
+
+; load_nametable:        
+
+; lda cave_bin_compressed, x ; Load tile data for tile y
+; inx
+; sta curr_compressed_byte ; Store the current byte in curr_compressed_byte
+; ; draw metatiles
+
+;   rts
+
+; render_metatile:
+;   ; Render the metatile
+;   lda num_tile
+;   sta PPUDATA
+;   ; store second tile in the nametable +1
+;   lda num_tile
+;   clc
+;   adc #1 ; Add 1 to the tile number
+;   sta PPUDATA
+
+;   lda name_table_low
+;   clc
+;   adc #32 
+;   sta name_table_low
+
+;   lda num_tile
+;   clc
+;   adc#$16 
+;   sta PPUDATA 
+
+;   rts
 
 enable_rendering:
   lda #%10010000	; Enable NMI
   sta PPUCTRL
   lda #%00010110; Enable background and sprite rendering in PPUMASK.
   sta PPUMASK
+
+
+load_nametable:
+  ; Set stage to 1
+  lda #1
+  sta CURRENT_STAGE
+
+  ; Select first nametable
+  lda #<stage_one_left_packaged
+  sta SELECTED_NAMETABLE
+  lda #>stage_one_left_packaged
+  sta SELECTED_NAMETABLE+1
+
+  ; Select first attribute table
+  lda #<stage_one_left_attributes
+  sta SELECTED_ATTRIBUTES
+  lda #>stage_one_left_attributes
+  sta SELECTED_ATTRIBUTES+1
+
+  ; $2000 for first nametable
+  lda #$20
+  sta NAMETABLE_PTR
+  lda #$00
+  sta NAMETABLE_PTR+1
+  jsr write_nametable
+
+  ; $23C0 for first attribute table
+  lda #$23
+  sta NAMETABLE_PTR
+  lda #$C0
+  sta NAMETABLE_PTR+1
+  jsr load_attributes
+
+  ; Select second nametable
+  lda #<stage_one_right_packaged
+  sta SELECTED_NAMETABLE
+  lda #>stage_one_right_packaged
+  sta SELECTED_NAMETABLE+1
+
+  ; Select second attribute table
+  lda #<stage_one_right_attributes
+  sta SELECTED_ATTRIBUTES
+  lda #>stage_one_right_attributes
+  sta SELECTED_ATTRIBUTES+1
+
+  ; $2400 for second nametable
+  lda #$24
+  sta NAMETABLE_PTR
+  lda #$00
+  sta NAMETABLE_PTR+1
+  jsr write_nametable
+
+  ; $27C0 for second attribute table
+  lda #$27
+  sta NAMETABLE_PTR
+  lda #$C0
+  sta NAMETABLE_PTR+1
+  jsr load_attributes
 
 forever:
   lda vblank_flag
@@ -357,7 +467,227 @@ update_sprites:
     lda #$00 ; Reset vblank_flag
     sta vblank_flag
     rts
+; Loads, decodes and writes a nametable at NAME_TABLE_PTR 
+; from a packaged nametable in ROM
+write_nametable:
 
+  ; Save registers to stack
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  ; Based on CURRENT_STAGE, select the correct megatiles
+  lda CURRENT_STAGE
+  cmp #1
+  ; If stage 1, load stage one megatiles
+  beq get_cave_megatiles
+  cmp #2
+  beq get_netherrealm_tiles
+  
+  ;choose the correct megatiles
+  get_cave_megatiles:
+      ; Load the megatiles for the cave
+      lda #<megatiles_stage_one
+      ; Load the low byte of the address of the megatiles
+      sta MEGATILES_PTR
+      ; Load the high byte of the address of the megatiles
+      lda #>megatiles_stage_one
+      sta MEGATILES_PTR+1
+      ; Jump to the dec_write_nmtable subroutine
+      jmp dec_write_nmtable
+  
+  get_netherrealm_tiles:
+      lda #<megatiles_stage_two
+      sta MEGATILES_PTR
+      lda #>megatiles_stage_two
+      sta MEGATILES_PTR+1
+      jmp dec_write_nmtable
+
+  dec_write_nmtable:
+  ldx #0
+  read_nametable_loop:
+      txa
+      tay
+      lda (SELECTED_NAMETABLE), y
+      sta BYTE_TO_DECODE
+      jsr decode_and_write_byte
+
+      ; Check if x+1 % 4 == 0, means we read 4 bytes, increment NAMETABLE_PTR by 32
+      txa
+      clc
+      adc #1
+      and #%00000011
+      beq increment_nametable_ptr
+      jmp skip_increment_nametable_ptr
+
+      increment_nametable_ptr:
+          lda NAMETABLE_PTR+1
+          clc
+          adc #32
+          sta NAMETABLE_PTR+1
+      
+          ; Check if carry, need to increment high byte
+          bcc skip_increment_nametable_ptr
+          inc NAMETABLE_PTR
+      
+      skip_increment_nametable_ptr:
+          inx 
+          cpx #60
+          bne read_nametable_loop
+  
+  ; Done with subroutine, pop registers from stack
+  pla
+  tay
+  pla
+  tax
+  pla
+
+  rts
+; Decodes a byte and writes the corresponding 2x2 region of the nametable
+decode_and_write_byte:
+    ; Save registers to stack
+    pha
+    txa
+    pha
+    tya
+    pha
+
+    ; Loop through 2-bit pairs of the byte
+    ; Each 2-bit pair corresponds to the top left tile of a 2x2 megatile, 
+    ; can be used to index megatile array
+    ldx #0
+    read_bits_loop:
+        lda #$00
+        ; we use this to read 2 bits at a time
+        sta BITS_FROM_BYTE ; Clear BITS_FROM_BYTE
+        
+        lda BYTE_TO_DECODE ; Load byte to decode
+        clc
+        asl ; Shift to read 1 bit into carry
+        rol BITS_FROM_BYTE ; Rotate carry into BITS_FROM_BYTE
+        asl ; Shift to read 1 bit into carry
+        rol BITS_FROM_BYTE ; Rotate carry into BITS_FROM_BYTE
+        sta BYTE_TO_DECODE ; Save byte back to BYTE_TO_DECODE
+
+        ldy BITS_FROM_BYTE ; Save the 2-bit pair to X register
+        lda (MEGATILES_PTR), y ; Load tile from megatiles based on 2-bit pair
+        sta SELECTED_TILE_WRITE ; Save selected tile to SELECTED_TILE_WRITE
+        
+        ; From SELECTED_TILE_WRITE, call write_region_2x2_nametable 
+        ; subroutine to write 2x2 region of nametable
+        ; based on the top left tile of the mega tile selected
+        jsr write_2x2_region_nametable
+
+        ; Move NAME_TABLE_PTR to next 2x2 region
+        lda NAMETABLE_PTR+1
+        clc
+        adc #2
+        sta NAMETABLE_PTR+1
+
+        ; Increment x to move to next 2-bit pair
+        inx
+        cpx #4
+        bne read_bits_loop
+    
+    ; Pop registers from stack
+    pla
+    tay
+    pla
+    tax
+    pla
+
+    rts
+; Writes a 2x2 region of the nametable based on the top left tile
+write_2x2_region_nametable:
+    ; Save registers to stack
+    pha
+    txa
+    pha
+    tya
+    pha
+
+    ; Write first tile of 2x2 region
+    lda NAMETABLE_PTR
+    sta PPUADDR
+    lda NAMETABLE_PTR+1
+    sta PPUADDR
+    lda SELECTED_TILE_WRITE
+    sta PPUDATA
+
+    ; Write second tile of 2x2 region
+    lda NAMETABLE_PTR
+    sta PPUADDR
+    lda NAMETABLE_PTR+1
+    clc
+    adc #1
+    sta PPUADDR
+    lda SELECTED_TILE_WRITE
+    clc
+    adc #1
+    sta PPUDATA
+
+    ; Write third tile of 2x2 region
+    lda NAMETABLE_PTR
+    sta PPUADDR
+    lda NAMETABLE_PTR+1
+    clc
+    adc #32
+    sta PPUADDR
+    lda SELECTED_TILE_WRITE
+    clc
+    adc #16
+    sta PPUDATA
+
+    ; Write fourth tile of 2x2 region
+    lda NAMETABLE_PTR
+    sta PPUADDR
+    lda NAMETABLE_PTR+1
+    clc
+    adc #33
+    sta PPUADDR
+    lda SELECTED_TILE_WRITE
+    clc
+    adc #17
+    sta PPUDATA
+
+    ; Pop registers from stack
+    pla
+    tay
+    pla
+    tax
+    pla
+
+    rts
+; Writes attributes to NAME_TABLE_PTR from attributes in ROM
+load_attributes:
+  ; Save registers to stack
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  ldx #0
+  read_attribute_loop:
+      txa
+      tay
+      lda (SELECTED_ATTRIBUTES), y
+      sta PPUDATA
+      inx
+      cpx #64
+      bne read_attribute_loop
+  ; Done writing attributes
+
+  ; Pop registers from stack
+  pla
+  tay
+  pla
+  tax
+  pla
+
+  rts
 update_player:
 
     ; Assume no movement initially
@@ -567,12 +897,40 @@ sprites:
 .byte $08, $12, $00, $00
 .byte $08, $13, $00, $08
 
+; Megatiles
+megatiles_stage_one:
+.byte $08, $02, $04, $06 ; Only $09 and $27 are collidable
+megatiles_stage_two:
+.byte $0b, $0d, $2b, $2d
 
 left_tank_tiles:
       ; 0   1     2   3     4   5     6    7   8     9   A   B     C    D     E   F
 .byte $02, $03, $13, $12, $06, $07, $17, $16, $22, $23, $33, $32, $26, $27, $37, $36
 
+; Stage one nametables and attributes
+stage_one_left_packaged:
+.incbin "stage_one_left_packaged.bin"
+stage_one_left_attributes:
+.incbin "stage_one_left_attributes.bin"
+stage_one_right_packaged:
+.incbin "stage_one_right_packaged.bin"
+stage_one_right_attributes:
+.incbin "stage_one_right_attributes.bin"
 
+; Stage two nametables and attributes
+stage_two_left_packaged:
+.incbin "stage_two_left_packaged.bin"
+stage_two_left_attributes:
+.incbin "stage_two_left_attributes.bin"
+stage_two_right_packaged:
+.incbin "stage_two_right_packaged.bin"
+stage_two_right_attributes:
+.incbin "stage_two_right_attributes.bin"
+
+cave_tiles:
+; spiderweb, diamond brick, brick, empty
+.byte $03, $04, $06, $00
 ; Character memory
 .segment "CHARS"
 .incbin "zombies.chr"
+.incbin "Cave.chr"
