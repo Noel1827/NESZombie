@@ -75,20 +75,20 @@ pad1: .res 1
 
 ; Nametable things
 ; These are used for nametable subroutines
-NAMETABLE_PTR: .res 2
-SELECTED_NAMETABLE: .res 2
-SELECTED_ATTRIBUTES: .res 2
-SELECTED_TILE_WRITE: .res 1
+nametbl_ptr: .res 2
+curr_namtable: .res 2
+select_attr: .res 2
+write_this_tile: .res 1
 DECODED_BYTE_IDX: .res 1
-BYTE_TO_DECODE: .res 1
-BITS_FROM_BYTE: .res 1
-SCROLL_POSITION_X: .res 1
-SCROLL_POSITION_Y: .res 1
-MEGATILES_PTR: .res 2
+decode_byte: .res 1
+curr_bits: .res 1
+pos_scroll_x: .res 1
+pos_scroll_y: .res 1
+megatiles_pointer: .res 2
 need_update_nametable: .res 1
 
 ; Gameplay things
-CURRENT_STAGE: .res 1
+curr_stage: .res 1
 
 ; Main code segment for the program
 .segment "CODE"
@@ -182,58 +182,58 @@ stx changed_direction
 load_nametable:
   ; Set stage to 1
   lda #1
-  sta CURRENT_STAGE
+  sta curr_stage
 
   ; Select first nametable
   lda #<stage_one_left_packaged
-  sta SELECTED_NAMETABLE
+  sta curr_namtable
   lda #>stage_one_left_packaged
-  sta SELECTED_NAMETABLE+1
+  sta curr_namtable+1
 
   ; Select first attribute table
   lda #<stage_one_left_attributes
-  sta SELECTED_ATTRIBUTES
+  sta select_attr
   lda #>stage_one_left_attributes
-  sta SELECTED_ATTRIBUTES+1
+  sta select_attr+1
 
   ; $2000 for first nametable
   lda #$20
-  sta NAMETABLE_PTR
+  sta nametbl_ptr
   lda #$00
-  sta NAMETABLE_PTR+1
+  sta nametbl_ptr+1
   jsr write_nametable
 
   ; $23C0 for first attribute table
   lda #$23
-  sta NAMETABLE_PTR
+  sta nametbl_ptr
   lda #$C0
-  sta NAMETABLE_PTR+1
+  sta nametbl_ptr+1
   jsr load_attributes
 
   ; Select second nametable
   lda #<stage_one_right_packaged
-  sta SELECTED_NAMETABLE
+  sta curr_namtable
   lda #>stage_one_right_packaged
-  sta SELECTED_NAMETABLE+1
+  sta curr_namtable+1
 
   ; Select second attribute table
   lda #<stage_one_right_attributes
-  sta SELECTED_ATTRIBUTES
+  sta select_attr
   lda #>stage_one_right_attributes
-  sta SELECTED_ATTRIBUTES+1
+  sta select_attr+1
 
   ; $2400 for second nametable
   lda #$24
-  sta NAMETABLE_PTR
+  sta nametbl_ptr
   lda #$00
-  sta NAMETABLE_PTR+1
+  sta nametbl_ptr+1
   jsr write_nametable
 
   ; $27C0 for second attribute table
   lda #$27
-  sta NAMETABLE_PTR
+  sta nametbl_ptr
   lda #$C0
-  sta NAMETABLE_PTR+1
+  sta nametbl_ptr+1
   jsr load_attributes
 
 
@@ -288,17 +288,17 @@ nmi:
 
   scroll_screen_check:
   ; TODO Stop at 255
-  lda SCROLL_POSITION_X
+  lda pos_scroll_x
   cmp #255
-  beq skip_scroll_increment
+  beq dont_increment_scroll
 
   ; Increment PPUSCROLL to scroll the screen by 60 pxs/second 
-  inc SCROLL_POSITION_X
+  inc pos_scroll_x
 
-  skip_scroll_increment:
-  lda SCROLL_POSITION_X
+  dont_increment_scroll:
+  lda pos_scroll_x
   sta PPUSCROLL
-  lda SCROLL_POSITION_Y
+  lda pos_scroll_y
   sta PPUSCROLL
 
   ; Reset scroll position
@@ -476,8 +476,8 @@ write_nametable:
   tya
   pha
 
-  ; Based on CURRENT_STAGE, select the correct megatiles
-  lda CURRENT_STAGE
+  ; Based on curr_stage, select the correct megatiles
+  lda curr_stage
   cmp #1
   ; If stage 1, load stage one megatiles
   beq get_cave_megatiles
@@ -487,53 +487,53 @@ write_nametable:
   ;choose the correct megatiles
   get_cave_megatiles:
       ; Load the megatiles for the cave
-      lda #<megatiles_stage_one
+      lda #<cave_megatiles
       ; Load the low byte of the address of the megatiles
-      sta MEGATILES_PTR
+      sta megatiles_pointer
       ; Load the high byte of the address of the megatiles
-      lda #>megatiles_stage_one
-      sta MEGATILES_PTR+1
+      lda #>cave_megatiles
+      sta megatiles_pointer+1
       ; Jump to the dec_write_nmtable subroutine
       jmp dec_write_nmtable
   
   get_netherrealm_tiles:
-      lda #<megatiles_stage_two
-      sta MEGATILES_PTR
-      lda #>megatiles_stage_two
-      sta MEGATILES_PTR+1
+      lda #<nether_megatiles
+      sta megatiles_pointer
+      lda #>nether_megatiles
+      sta megatiles_pointer+1
       jmp dec_write_nmtable
 
   dec_write_nmtable:
   ldx #0
-  read_nametable_loop:
+  loop_read_nmtable:
       txa
       tay
-      lda (SELECTED_NAMETABLE), y
-      sta BYTE_TO_DECODE
+      lda (curr_namtable), y
+      sta decode_byte
       jsr decode_and_write_byte
 
-      ; Check if x+1 % 4 == 0, means we read 4 bytes, increment NAMETABLE_PTR by 32
+      ; Check if x+1 % 4 == 0, means we read 4 bytes, increment nametbl_ptr by 32
       txa
       clc
       adc #1
       and #%00000011
-      beq increment_nametable_ptr
-      jmp skip_increment_nametable_ptr
+      beq increment_nametbl_ptr
+      jmp skip_increment_nametbl_ptr
 
-      increment_nametable_ptr:
-          lda NAMETABLE_PTR+1
+      increment_nametbl_ptr:
+          lda nametbl_ptr+1
           clc
           adc #32
-          sta NAMETABLE_PTR+1
+          sta nametbl_ptr+1
       
           ; Check if carry, need to increment high byte
-          bcc skip_increment_nametable_ptr
-          inc NAMETABLE_PTR
+          bcc skip_increment_nametbl_ptr
+          inc nametbl_ptr
       
-      skip_increment_nametable_ptr:
+      skip_increment_nametbl_ptr:
           inx 
           cpx #60
-          bne read_nametable_loop
+          bne loop_read_nmtable
   
   ; Done with subroutine, pop registers from stack
   pla
@@ -545,7 +545,7 @@ write_nametable:
   rts
 ; Decodes a byte and writes the corresponding 2x2 region of the nametable
 decode_and_write_byte:
-    ; Save registers to stack
+
     pha
     txa
     pha
@@ -559,37 +559,34 @@ decode_and_write_byte:
     read_bits_loop:
         lda #$00
         ; we use this to read 2 bits at a time
-        sta BITS_FROM_BYTE ; Clear BITS_FROM_BYTE
+        sta curr_bits ; Clear curr_bits
         
-        lda BYTE_TO_DECODE ; Load byte to decode
+        lda decode_byte ; Load byte to decode
         clc
         asl ; Shift to read 1 bit into carry
-        rol BITS_FROM_BYTE ; Rotate carry into BITS_FROM_BYTE
-        asl ; Shift to read 1 bit into carry
-        rol BITS_FROM_BYTE ; Rotate carry into BITS_FROM_BYTE
-        sta BYTE_TO_DECODE ; Save byte back to BYTE_TO_DECODE
+        rol curr_bits ; Rotate carry into curr_bits
+        asl 
+        rol curr_bits 
+        sta decode_byte ; Save byte back to decode_byte
 
-        ldy BITS_FROM_BYTE ; Save the 2-bit pair to X register
-        lda (MEGATILES_PTR), y ; Load tile from megatiles based on 2-bit pair
-        sta SELECTED_TILE_WRITE ; Save selected tile to SELECTED_TILE_WRITE
+        ldy curr_bits ; Save the 2-bit pair to X register
+        lda (megatiles_pointer), y ; Load tile from megatiles based on 2-bit pair
+        sta write_this_tile 
         
-        ; From SELECTED_TILE_WRITE, call write_region_2x2_nametable 
-        ; subroutine to write 2x2 region of nametable
+        ; From write_this_tile, call write_region_2x2_nametable 
         ; based on the top left tile of the mega tile selected
-        jsr write_2x2_region_nametable
+        jsr write_2x2
 
         ; Move NAME_TABLE_PTR to next 2x2 region
-        lda NAMETABLE_PTR+1
+        lda nametbl_ptr+1
         clc
         adc #2
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
 
         ; Increment x to move to next 2-bit pair
         inx
         cpx #4
         bne read_bits_loop
-    
-    ; Pop registers from stack
     pla
     tay
     pla
@@ -597,9 +594,10 @@ decode_and_write_byte:
     pla
 
     rts
-; Writes a 2x2 region of the nametable based on the top left tile
-write_2x2_region_nametable:
-    ; Save registers to stack
+
+; Writes a 2x2 region 
+write_2x2:
+
     pha
     txa
     pha
@@ -607,45 +605,45 @@ write_2x2_region_nametable:
     pha
 
     ; Write first tile of 2x2 region
-    lda NAMETABLE_PTR
+    lda nametbl_ptr
     sta PPUADDR
-    lda NAMETABLE_PTR+1
+    lda nametbl_ptr+1
     sta PPUADDR
-    lda SELECTED_TILE_WRITE
+    lda write_this_tile
     sta PPUDATA
 
     ; Write second tile of 2x2 region
-    lda NAMETABLE_PTR
+    lda nametbl_ptr
     sta PPUADDR
-    lda NAMETABLE_PTR+1
+    lda nametbl_ptr+1
     clc
     adc #1
     sta PPUADDR
-    lda SELECTED_TILE_WRITE
+    lda write_this_tile
     clc
     adc #1
     sta PPUDATA
 
     ; Write third tile of 2x2 region
-    lda NAMETABLE_PTR
+    lda nametbl_ptr
     sta PPUADDR
-    lda NAMETABLE_PTR+1
+    lda nametbl_ptr+1
     clc
     adc #32
     sta PPUADDR
-    lda SELECTED_TILE_WRITE
+    lda write_this_tile
     clc
     adc #16
     sta PPUDATA
 
     ; Write fourth tile of 2x2 region
-    lda NAMETABLE_PTR
+    lda nametbl_ptr
     sta PPUADDR
-    lda NAMETABLE_PTR+1
+    lda nametbl_ptr+1
     clc
     adc #33
     sta PPUADDR
-    lda SELECTED_TILE_WRITE
+    lda write_this_tile
     clc
     adc #17
     sta PPUDATA
@@ -671,7 +669,7 @@ load_attributes:
   read_attribute_loop:
       txa
       tay
-      lda (SELECTED_ATTRIBUTES), y
+      lda (select_attr), y
       sta PPUDATA
       inx
       cpx #64
@@ -697,7 +695,7 @@ handle_nametable_change:
     ; If A was not pressed, skip to end
     lda pad1
     and #BTN_A
-    beq skip_nametable_change
+    beq dont_change_nametable
 
     ; Disable disable NMI and screen
     lda PPUCTRL
@@ -712,39 +710,38 @@ handle_nametable_change:
         bpl vblankwait3
 
 
-    ; If in stage one, set to stage two
-    ; If in stage two, set to stage one
-    lda CURRENT_STAGE
+    ; If in stage one, set to stage two and vice versa
+    lda curr_stage
     cmp #1
-    beq set_stage_two
+    beq set_cave
     cmp #2
-    beq set_stage_one
+    beq set_nether
 
-    set_stage_two:
+    set_cave:
         lda #1
         sta need_update_nametable
         lda #2
-        sta CURRENT_STAGE
-        jmp call_update_nametable
+        sta curr_stage
+        jmp update_nmtable_helper
     
-    set_stage_one:
+    set_nether:
         lda #1
         sta need_update_nametable
         lda #1
-        sta CURRENT_STAGE
-        jmp call_update_nametable
+        sta curr_stage
+        jmp update_nmtable_helper
     
-    call_update_nametable:
+    update_nmtable_helper:
         ; Set scroll position to 0,0
         lda #$00
-        sta SCROLL_POSITION_X
-        sta SCROLL_POSITION_Y
+        sta pos_scroll_x
+        sta pos_scroll_y
         jsr update_nametable
 
-    skip_nametable_change:
+    dont_change_nametable:
 
     ; Restore NMI and screen
-    lda #$80
+    lda #%10010000
     sta PPUCTRL
     lda #$1e
     sta PPUMASK
@@ -771,62 +768,62 @@ update_nametable:
     cmp #1
     bne skip_update_nametable_intermediate
 
-    ; Select nametable based on CURRENT_STAGE
-    lda CURRENT_STAGE
+    ; Select nametable based on curr_stage
+    lda curr_stage
     cmp #1
     beq select_stage_one
 
-    lda CURRENT_STAGE
+    lda curr_stage
     cmp #2
     beq select_stage_two
 
     select_stage_one:
         ; Load stage one left nametables
         lda #<stage_one_left_packaged
-        sta SELECTED_NAMETABLE
+        sta curr_namtable
         lda #>stage_one_left_packaged
-        sta SELECTED_NAMETABLE+1
+        sta curr_namtable+1
 
         lda #$20
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$00
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr write_nametable
 
         ; Load stage one left attributes
         lda #<stage_one_left_attributes
-        sta SELECTED_ATTRIBUTES
+        sta select_attr
         lda #>stage_one_left_attributes
-        sta SELECTED_ATTRIBUTES+1
+        sta select_attr+1
 
         lda #$23
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$C0
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr load_attributes
 
         ; Load stage one right nametables
         lda #<stage_one_right_packaged
-        sta SELECTED_NAMETABLE
+        sta curr_namtable
         lda #>stage_one_right_packaged
-        sta SELECTED_NAMETABLE+1
+        sta curr_namtable+1
 
         lda #$24
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$00
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr write_nametable
 
         ; Load stage one right attributes
         lda #<stage_one_right_attributes
-        sta SELECTED_ATTRIBUTES
+        sta select_attr
         lda #>stage_one_right_attributes
-        sta SELECTED_ATTRIBUTES+1
+        sta select_attr+1
 
         lda #$27
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$C0
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr load_attributes
 
         jmp skip_update_nametable
@@ -838,50 +835,50 @@ update_nametable:
     select_stage_two:
         ; Load stage two left nametables
         lda #<stage_two_left_packaged
-        sta SELECTED_NAMETABLE
+        sta curr_namtable
         lda #>stage_two_left_packaged
-        sta SELECTED_NAMETABLE+1
+        sta curr_namtable+1
 
         lda #$20
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$00
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr write_nametable
 
         ; Load stage two left attributes
         lda #<stage_two_left_attributes
-        sta SELECTED_ATTRIBUTES
+        sta select_attr
         lda #>stage_two_left_attributes
-        sta SELECTED_ATTRIBUTES+1
+        sta select_attr+1
 
         lda #$23
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$C0
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr load_attributes
 
         ; Load stage two right nametables
         lda #<stage_two_right_packaged
-        sta SELECTED_NAMETABLE
+        sta curr_namtable
         lda #>stage_two_right_packaged
-        sta SELECTED_NAMETABLE+1
+        sta curr_namtable+1
 
         lda #$24
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$00
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr write_nametable
 
         ; Load stage two right attributes
         lda #<stage_two_right_attributes
-        sta SELECTED_ATTRIBUTES
+        sta select_attr
         lda #>stage_two_right_attributes
-        sta SELECTED_ATTRIBUTES+1
+        sta select_attr+1
 
         lda #$27
-        sta NAMETABLE_PTR
+        sta nametbl_ptr
         lda #$C0
-        sta NAMETABLE_PTR+1
+        sta nametbl_ptr+1
         jsr load_attributes
 
         jmp skip_update_nametable
@@ -1091,10 +1088,10 @@ move_player_right:
 
 palettes:
 ; background palette
-.byte $00, $20,$15,$06 ;
-.byte $0F, $21,$00,$10 
-.byte $00, $01, $12, $10 
-.byte $00, 15,06,10
+.byte $00, $21,$00,$10 
+.byte $00, $20,$00,$10 
+.byte $00, $01,$12,$10
+.byte $00, $15,$06,$10
 
 ; sprite palette
 .byte $0F, $1C, $2C, $1A
@@ -1109,38 +1106,38 @@ sprites:
 .byte $08, $13, $00, $08
 
 ; Megatiles
-megatiles_stage_one:
-.byte $08, $04, $06, $02 
-megatiles_stage_two:
-.byte $08, $02, $04, $06
+cave_megatiles:
+.byte $02, $04, $06, $08 
+nether_megatiles:
+.byte $22, $24, $26, $08
 
 left_tank_tiles:
       ; 0   1     2   3     4   5     6    7   8     9   A   B     C    D     E   F
 .byte $02, $03, $13, $12, $06, $07, $17, $16, $22, $23, $33, $32, $26, $27, $37, $36
 
+integers:
+.byte $40, $41, $42, $43, $44, $45, $46, $47, $48, $49
+
 ; Stage one nametables and attributes
 stage_one_left_packaged:
-.incbin "stage_one_left_packaged.bin"
+.incbin "/components/nametable/stage_one_left_packaged.bin"
 stage_one_left_attributes:
-.incbin "stage_one_left_attributes.bin"
+.incbin "/components/nametable/stage_one_left_attributes.bin"
 stage_one_right_packaged:
-.incbin "stage_one_right_packaged.bin"
+.incbin "/components/nametable/stage_one_right_packaged.bin"
 stage_one_right_attributes:
-.incbin "stage_one_right_attributes.bin"
+.incbin "/components/nametable/stage_one_right_attributes.bin"
 
 ; Stage two nametables and attributes
 stage_two_left_packaged:
-.incbin "stage_two_left_packaged.bin"
+.incbin "/components/nametable/stage_two_left_packaged.bin"
 stage_two_left_attributes:
-.incbin "stage_two_left_attributes.bin"
+.incbin "/components/nametable/stage_two_left_attributes.bin"
 stage_two_right_packaged:
-.incbin "stage_two_right_packaged.bin"
+.incbin "/components/nametable/stage_two_right_packaged.bin"
 stage_two_right_attributes:
-.incbin "stage_two_right_attributes.bin"
+.incbin "/components/nametable/stage_two_right_attributes.bin"
 
-cave_tiles:
-; spiderweb, diamond brick, brick, empty
-.byte $03, $04, $06, $00
 ; Character memory
 .segment "CHARS"
 .incbin "Cave.chr"

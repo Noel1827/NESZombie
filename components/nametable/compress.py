@@ -2,19 +2,20 @@ import os
 import sys
 from enum import Enum
 
+# need to change these values to match stage two tile index
 
 class TILE(Enum):
-  BRICKS = 0x02
-  BRICKS_INV = 0x04
-  CUBE = 0x06
-  CUBE_INV = 0x08
+  SPIDERWEB = 0x22
+  DIAMOND_BRICK = 0x24
+  STONE_BRICK = 0x26
+  NOTHING = 0x08
 
 
 tile_to_idx_map = {
-    TILE.BRICKS.value: 0,
-    TILE.BRICKS_INV.value: 1,
-    TILE.CUBE.value: 2,
-    TILE.CUBE_INV.value: 3
+    TILE.SPIDERWEB.value: 0,
+    TILE.DIAMOND_BRICK.value: 1,
+    TILE.STONE_BRICK.value: 2,
+    TILE.NOTHING.value: 3
 }
 
 
@@ -25,8 +26,10 @@ def main():
   bytes = read_bytes(binary_file_name, binary_file_size)
   attributes = extract_attributes_from_bytes(bytes)
   packaged_bytes = bytearray(package_bytes(bytes))
-  write_bytes(binary_file_name.replace(".bin", "_packaged.bin"), packaged_bytes)
-  write_bytes(binary_file_name.replace(".bin", "_attributes.bin"), attributes)
+  # _right
+  # _left
+  write_bytes(binary_file_name.replace(".bin", "_right_packaged.bin"), packaged_bytes)
+  write_bytes(binary_file_name.replace(".bin", "_right_attributes.bin"), attributes)
 
 
 def read_bytes(file_name, file_size) -> bytearray:
