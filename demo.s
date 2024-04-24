@@ -87,6 +87,11 @@ pos_scroll_y: .res 1
 megatiles_pointer: .res 2
 need_update_nametable: .res 1
 
+stop_watch: .res 2
+count_down_cave: .res 2
+count_down_nether: .res 2
+timer_ptr: .res 2
+
 ; Gameplay things
 curr_stage: .res 1
 
@@ -138,7 +143,26 @@ main:
  stx count_frames
  stx isMoving
  stx vblank_flag
-stx changed_direction
+ stx changed_direction
+ stx count_down_cave
+ stx count_down_cave+1
+ stx stop_watch
+ stx stop_watch+1
+
+ldx #$20
+stx timer_ptr
+ldx #$48
+stx timer_ptr+1
+
+ldx #5
+stx count_down_cave
+ldx #0
+stx count_down_cave+1
+
+ldx #3
+stx count_down_nether
+ldx #5
+stx count_down_nether+1
 
   clear_oam:
     ldx #0
@@ -235,6 +259,44 @@ load_nametable:
   lda #$C0
   sta nametbl_ptr+1
   jsr load_attributes
+
+
+; Load address of the nametable with the desired offset
+lda timer_ptr
+sta PPUADDR
+lda timer_ptr+1
+sta PPUADDR
+
+; ldx count_down_cave
+; give high byte and low byte values from 0-9 to make a number
+ldx #5
+stx count_down_cave
+
+; ldx #3
+; stx count_down_nether
+; ldx #5
+; stx count_down_nether+1
+
+  lda Integers, x
+  sta PPUDATA
+
+  ldx #0
+  stx count_down_cave+1
+  
+  ldx count_down_cave+1
+  lda Integers, x
+  sta PPUDATA
+;decrease low byte until it reaches 0, then decrease high byte
+; if high byte reaches 0, then game over
+; ; Loop to write integers as ASCII characters to nametable
+; LDY #$00        ; Start with integer 0
+; loop:
+;     LDA Integers, Y    ; Load ASCII character from integers array
+;     STA PPUDATA        ; Write ASCII character to nametable
+;     INY                ; Increment Y to get next ASCII character
+;     CPY #$0A           ; Check if we have written all 10 ASCII characters
+;     BNE loop           ; If not, loop back to write the next character
+  
 
 
 enable_rendering:
@@ -1115,8 +1177,13 @@ left_tank_tiles:
       ; 0   1     2   3     4   5     6    7   8     9   A   B     C    D     E   F
 .byte $02, $03, $13, $12, $06, $07, $17, $16, $22, $23, $33, $32, $26, $27, $37, $36
 
-integers:
+Integers:
+;      0    1    2    3    4    5    6    7    8    9   
 .byte $40, $41, $42, $43, $44, $45, $46, $47, $48, $49
+
+StageClear:
+;      S    t    a    g    e    _     C    l    e    a    r
+.byte $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A
 
 ; Stage one nametables and attributes
 stage_one_left_packaged:
