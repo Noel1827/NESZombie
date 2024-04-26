@@ -474,6 +474,7 @@ handle_input:
         bne read_button_loop  ; Continue until all 8 buttons are read
 
     ; Pop registers from stack
+    
     pla
     tay
     pla
