@@ -11,6 +11,12 @@ OAMDATA   = $2004
 OAMDMA    = $4014
 
 sprite_buffer = $0200
+; i want the last values from the sprite buffer to store 2 sprites of tiles. 
+oam_timer_first_timer_offset = $F0 
+; for 2 sprites $02F8
+oam_timer_second_timer_offset = $F4
+; unit1 = $02FC
+; unit2 = $03FD
 
 CONTROLLER1 = $4016
 CONTROLLER2 = $4017
@@ -98,6 +104,16 @@ check_x_collision: .res 1
 check_y_collision: .res 1
 p_megatile_index: .res 1
 
+stop_watch: .res 2
+count_down_cave: .res 2
+count_down_nether: .res 2
+StageClearPointer: .res 2
+timer_ptr: .res 2
+oneSecond: .res 1
+
+pos_x_timer: .res 1
+pos_y_timer: .res 1
+
 ; Main code segment for the program
 .segment "CODE"
 
@@ -139,14 +155,32 @@ vblankwait2:
 main:
 
 ; initialize 
- ldx #0
- stx offset_static_sprite
- stx direction
- stx animation
- stx count_frames
- stx isMoving
- stx vblank_flag
-stx changed_direction
+  ldx #0
+  stx offset_static_sprite
+  stx direction
+  stx animation
+  stx count_frames
+  stx isMoving
+  stx vblank_flag
+  stx changed_direction
+  stx oneSecond
+  stx stop_watch
+  stx stop_watch+1
+
+  ldx #5
+  stx count_down_cave
+  ldx #0
+  stx count_down_cave+1
+
+  ldx #3
+  stx count_down_nether
+  ldx #5
+  stx count_down_nether+1
+
+  ldx #$02
+  stx timer_ptr
+  ldx #$F0
+  stx timer_ptr+1
 
 
   ; Init collision map pointer to start at base address collision_m_left
@@ -193,6 +227,15 @@ stx changed_direction
 
     sta render_tile
     jsr prepare_sprites
+
+    lda #48
+    sta pos_x_timer
+    lda #16
+    sta pos_y_timer
+
+
+    ; draw timer
+    jsr draw_timer
 
     ; Weird bug, PPU writes the tile in x+1, y+1, so player_x and player_y are offset by 1
     lda #0
@@ -241,9 +284,8 @@ load_nametable:
   lda #1
   sta curr_stage_side
 
-  ; Increment high byte of ptr_to_collision_m to point to the next 240 bytes (0x0400)
-  ; This is because the collision map is 240 bytes long, and we cant overwrite
-  ; the first 240 bytes of the collision map with the second stage collision map
+  ; Increment the high byte of ptr_to_collision_m to point to the next 240 bytes (0x0400).
+  ; This ensures that the first 240 bytes of the collision map are not overwritten with the second stage collision map.
   inc ptr_to_collision_m+1
 
   ; Select second nametable
@@ -272,6 +314,27 @@ load_nametable:
   sta nametbl_ptr+1
   jsr load_attributes
 
+  ; ldx #$20
+  ; stx timer_ptr
+  ; ldx #$48
+  ; stx timer_ptr+1
+
+  ; ; Load address of the nametable with the desired offset
+  ; lda timer_ptr
+  ; sta PPUADDR
+  ; lda timer_ptr+1
+  ; sta PPUADDR
+
+  ; ; ldx count_down_cave
+  ; ; give high byte and low byte values from 0-9 to make a number
+  ; ldx count_down_cave
+  ; lda Integers, x
+  ; sta PPUDATA
+
+  
+  ; ldx count_down_cave+1
+  ; lda Integers, x
+  ; sta PPUDATA
   ; Reset current stage side to 0
   lda #0
   sta curr_stage_side
@@ -292,6 +355,7 @@ forever:
   lda vblank_flag
   cmp #1
   bne not_sync
+   ; jsr check_timer
     jsr handle_input
     jsr handle_nametable_change
     jsr update_player
@@ -304,11 +368,11 @@ forever:
 
 
 nmi:
-    pha
-    txa
-    pha
-    tya
-    pha
+  pha
+  txa
+  pha
+  tya
+  pha
   ; Set vblank_flag to 1
   lda #1
   sta vblank_flag
@@ -322,9 +386,19 @@ nmi:
   bne jmp_rst_timer ; If count_frames is not 60, skip resetting it
   lda #$00 ; Reset count_frames to 0
   sta count_frames ; Store 0 in count_frames
+
   jmp scroll_screen_check ; Jump to scroll_screen_check subroutine
   jmp_rst_timer: ; Skip resetting count_frames and prepare_sprites subroutine
   inc count_frames ; Increase count_frames by 1
+  
+  lda oneSecond ; Load oneSecond
+  cmp #60 ; Compare oneSecond to 60
+  bne not_a_second_passed ; If oneSecond is not 60, skip resetting it
+  lda #$00 ; Reset oneSecond to 0
+  sta oneSecond ; Store 0 in oneSecond
+
+  not_a_second_passed: ; Skip resetting oneSecond
+  inc oneSecond ; Increase oneSecond by 1
 
   scroll_screen_check:
   lda scroll_stage
@@ -352,6 +426,172 @@ nmi:
   pla
 
   rti
+game_over:
+  ; store in stack
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  lda #$20
+  sta nametbl_ptr
+  lda #$4A 
+  sta nametbl_ptr+1
+  ldx $00
+  stage_clear_loop:
+    ; display stage clear on screen
+    lda StageClear, x
+    sta PPUDATA
+    inx
+    cpx #11
+    bne stage_clear_loop
+    
+  
+  ; pop from stack
+  pla
+  tay
+  pla
+  tax
+  pla
+  rts
+  ; jmp clear_sprite
+  ; lda #$00
+  ; sta vblank_flag
+  ; lda #$00
+  ; sta PPUCTRL
+  ; lda #$00
+  ; sta PPUMASK
+  ; jmp game_over
+
+check_timer:
+  ; stock in stack
+  pha
+  txa
+  pha
+  tya
+  pha
+  nop
+  ; check if one second passed: 60 frames PER second
+  lda oneSecond
+  cmp #60
+  bne end_timer_check ; if one second has not passed, skip the timer check
+
+  lda count_down_cave+1
+  cmp #0 ; check if low byte of stop watch is 0
+  bne skip_low_overflow ; if low byte is not 0, skip overflow
+  sta count_down_cave
+  cmp #0
+  beq game_over
+
+  lda count_down_cave
+  ; substract high byte
+  lda count_down_cave
+  sec
+  sbc #1 ; decrement low byte of stop watch
+  sta count_down_cave
+  ; high byte of count_down_cave is 5 of 50 and the low byte is the 0 of 50
+  ldy #1 ; offset for buffer, where the tile data for tile 1 is stored
+  lda count_down_cave ; load left digit
+  sta (timer_ptr), y ; store left digit in buffer
+  ldy #4 ; offset for buffer, where the other tile data is stored
+  lda count_down_cave+1 ; load right digit
+  sta (timer_ptr+1), y ; store right digit in buffer
+  jmp end_timer_check
+
+  skip_low_overflow:
+  sta count_down_cave+1
+  sec
+  sbc #1
+  lda count_down_cave+1
+  
+  end_timer_check:
+ 
+  ; pop from stack
+  pla
+  tay
+  pla
+  tax
+  pla
+  rts
+
+update_timer:
+  ; store in stack
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  ; offset for buffer, where the tile data for tile 1 is stored
+  ldy #1
+  lda count_down_cave
+  sta (timer_ptr), y
+  ldy #5
+  lda count_down_cave+1
+  sta (timer_ptr), y
+
+
+  ; pop from stack
+  pla
+  tay
+  pla
+  tax
+  pla
+  rts
+draw_timer:
+  ; store in stack
+  pha
+  txa
+  pha
+  tya
+  pha
+
+  ldx #oam_timer_first_timer_offset ; Offset for OAM buffer
+
+  lda pos_y_timer
+
+  sta sprite_buffer, x ; Store y position of the sprite
+  inx
+
+  ldy count_down_cave
+  lda Integers, y
+  sta sprite_buffer, x
+  inx
+
+  lda #$00
+  sta sprite_buffer, x
+  inx
+
+  lda pos_x_timer
+  sta sprite_buffer, x
+  inx
+
+  ; stx oam_timer_first_timer_offset ; Update oam_offset to the next available OAM buffer index
+
+  lda pos_y_timer
+  sta sprite_buffer, x ; Store y position of the sprite
+  inx
+
+  ldy count_down_cave +1
+  lda Integers, y
+  sta sprite_buffer, x
+  inx
+
+  lda #$00
+  sta sprite_buffer, x
+  inx
+
+  lda pos_x_timer+8
+  sta sprite_buffer, x
+  inx
+
+  pla
+  tay
+  pla
+  tax
+  pla
+  rts
 
 prepare_sprites:
     pha
@@ -663,7 +903,6 @@ dec_write_byte:
         ldy curr_bits ; Save the 2-bit pair to X register
         lda (megatiles_ptr), y ; Load tile from megatiles based on 2-bit pair
         sta write_this_tile 
-        nop
         ; Otherwise, set to 0
         lda write_this_tile
         cmp #$04
@@ -824,8 +1063,6 @@ handle_nametable_change:
     vblankwait3:
         bit PPUSTATUS
         bpl vblankwait3
-
-
     ; If in stage one, set to stage two and vice versa
     lda curr_stage
     cmp #1
@@ -1685,8 +1922,13 @@ left_tank_tiles:
       ; 0   1     2   3     4   5     6    7   8     9   A   B     C    D     E   F
 .byte $02, $03, $13, $12, $06, $07, $17, $16, $22, $23, $33, $32, $26, $27, $37, $36
 
-integers:
+Integers:
+;      0    1    2    3    4    5    6    7    8    9   
 .byte $40, $41, $42, $43, $44, $45, $46, $47, $48, $49
+
+StageClear:
+;      S    t    a    g    e    _     C    l    e    a    r
+.byte $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $5A
 
 ; Stage one nametables and attributes
 stage_one_left_packaged:
