@@ -2,88 +2,63 @@ import os
 import sys
 from enum import Enum
 
-# need to change these values to match stage two tile index
+class StageTwoTiles(Enum):
+    """ Enum representing various tiles specific to stage two. """
+    SPIDERWEB = 0x22
+    DIAMOND = 0x24
+    STONE = 0x26
+    EMPTY = 0x08
 
-class TILE(Enum):
-  SPIDERWEB = 0x22
-  DIAMOND_BRICK = 0x24
-  STONE_BRICK = 0x26
-  NOTHING = 0x08
-
-
-tile_to_idx_map = {
-    TILE.SPIDERWEB.value: 0,
-    TILE.DIAMOND_BRICK.value: 1,
-    TILE.STONE_BRICK.value: 2,
-    TILE.NOTHING.value: 3
+# Mapping of tile hexadecimal values to simpler numeric indices
+tile_index_map = {
+    StageTwoTiles.SPIDERWEB.value: 0,
+    StageTwoTiles.DIAMOND.value: 1,
+    StageTwoTiles.STONE.value: 2,
+    StageTwoTiles.EMPTY.value: 3
 }
 
-
 def main():
-  # Assume the binary file name is passed as the first argument
-  binary_file_name = sys.argv[1]
-  binary_file_size = os.stat(binary_file_name).st_size
-  bytes = read_bytes(binary_file_name, binary_file_size)
-  attributes = extract_attributes_from_bytes(bytes)
-  packaged_bytes = bytearray(package_bytes(bytes))
-  # _right
-  # _left
-  write_bytes(binary_file_name.replace(".bin", "_right_packaged.bin"), packaged_bytes)
-  write_bytes(binary_file_name.replace(".bin", "_right_attributes.bin"), attributes)
+    file_path = sys.argv[1]
+    file_size = os.path.getsize(file_path)
+    file_content = read_binary_file(file_path, file_size)
+    
+    attribute_data = extract_footer(file_content, 64)
+    compressed_tiles = compress_tile_data(file_content)
+    
+    write_binary_data(f"{file_path[:-4]}_right_compressed.bin", compressed_tiles)
+    write_binary_data(f"{file_path[:-4]}_right_attributes.bin", attribute_data)
 
+def read_binary_file(path, size) -> bytearray:
+    """ Load binary data from file up to a specified size. """
+    with open(path, "rb") as file:
+        return bytearray(file.read(size))
 
-def read_bytes(file_name, file_size) -> bytearray:
-  with open(file_name, "rb") as f:
-    file_bytes = f.read(file_size)
-  return bytearray(file_bytes)
+def extract_footer(data, num_bytes):
+    """ Extracts a specific number of bytes from the end of a data array. """
+    return data[-num_bytes:]
 
-def extract_attributes_from_bytes(bytes):
-  # Return last 64 bytes
-  attribute_bytes = bytes[-64:]
-  return bytearray(attribute_bytes)
+def compress_tile_data(data):
+    """ Compresses tile data into a compact format for storage or transmission. """
+    tiles_per_row = 16  # Derived from full row width divided by 2
+    compressed_data = []
 
-def combine_bytes(bytes):
-  # Ensure all values are in the range 0-3, fitting in 2 bits
-  # No need for a mask here as it's assumed they are already 0-3
-  for idx, b in enumerate(bytes):
-    bytes[idx] = tile_to_idx_map.get(b, 0)
-  combined_byte = (bytes[0] << 6) | (bytes[1] << 4) | (
-      bytes[2] << 2) | bytes[3]
+    for row in range(0, 30, 2):  # Assumes 30 total rows, iterating by two
+        for col in range(0, tiles_per_row, 4):  # Process every four 2-tile blocks per row
+            base_idx = (row * 32) + (col * 2)
+            tile_values = [data[base_idx + offset] for offset in [0, 2, 4, 6]]
+            compressed_byte = pack_tiles_into_byte(tile_values)
+            compressed_data.append(compressed_byte)
 
-  return combined_byte
+    return bytearray(compressed_data)
 
+def pack_tiles_into_byte(tile_indices):
+    """ Packs four 2-bit tile indices into a single byte. """
+    return sum(tile << (6 - 2*i) for i, tile in enumerate(tile_indices))
 
-def package_bytes(bytes):
-  width = 32  # Assuming the width of the data in 'tiles', not bytes
-  row_tiles = width // 2  # Number of 2x2 tile regions per row
-
-  packaged_byte_list = []
-
-  # Iterate through each 2x2 region in the 8x2 row
-  for row in range(0, 30, 2):  # Iterate over rows, two at a time
-    for col in range(0, row_tiles,
-                     4):  # Iterate over columns, four 2x2 regions at a time
-      # Calculate the index for the top-left tile of each 2x2 region
-      base_idx = (row * width) + (col * 2)
-
-      # Extract the first tile of each 2x2 region in the 8x2 area
-      # and convert them to their 2-bit representations
-      first_bytes = [
-          bytes[base_idx], bytes[base_idx + 2], bytes[base_idx + 4],
-          bytes[base_idx + 6]
-      ]
-
-      packaged_byte = combine_bytes(first_bytes)
-
-      # Append the packaged byte to the list
-      packaged_byte_list.append(packaged_byte)
-  return packaged_byte_list
-
-
-def write_bytes(file_name, bytes):
-  with open(file_name, "wb") as f:
-    f.write(bytes)
-
+def write_binary_data(filename, bytes_data):
+    """ Writes byte data to a specified file in binary mode. """
+    with open(filename, "wb") as file:
+        file.write(bytes_data)
 
 if __name__ == "__main__":
-  main()
+    main()

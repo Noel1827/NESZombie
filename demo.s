@@ -80,7 +80,6 @@ nametbl_ptr: .res 2
 curr_namtable: .res 2
 select_attr: .res 2
 write_this_tile: .res 1
-DECODED_BYTE_IDX: .res 1
 decode_byte: .res 1
 curr_bits: .res 1
 pos_x_scroll: .res 1
@@ -334,13 +333,6 @@ nmi:
     ; increment x ppu scroll
     inc pos_x_scroll
 
-;   ; Scroll screen right 1px and player left 1px
-;   lda pos_x_scroll
-;   clc
-;   adc #1
-;   sta pos_x_scroll
-;   jsr move_player_left
-
   skip_scroll_screen:
   lda pos_x_scroll
   sta PPUSCROLL
@@ -427,7 +419,7 @@ store_in_sprite_buffer:
     sta sprite_buffer, x
     inx
 
-    lda #$00
+    lda #$20
     sta sprite_buffer, x
     inx
 
@@ -584,13 +576,13 @@ write_nametable:
       sta megatiles_ptr+1
       ; Jump to the dec_write_nmtable subroutine
       jmp dec_write_nmtable
-  
+
+  ; same as above, but for the netherrealm
   get_netherrealm_tiles:
       lda #<nether_megatiles
       sta megatiles_ptr
       lda #>nether_megatiles
       sta megatiles_ptr+1
-      ; jmp dec_write_nmtable
 
   dec_write_nmtable:
   ldx #0
@@ -666,7 +658,6 @@ dec_write_byte:
         ldy curr_bits ; Save the 2-bit pair to X register
         lda (megatiles_ptr), y ; Load tile from megatiles based on 2-bit pair
         sta write_this_tile 
-        nop
         ; Otherwise, set to 0
         lda write_this_tile
         cmp #$04
@@ -811,7 +802,7 @@ handle_nametable_change:
     tya
     pha
 
-    ; If A was not pressed, skip to end
+    ; If X was not pressed, skip to end
     lda pad1
     and #BTN_A
     beq dont_change_nametable
