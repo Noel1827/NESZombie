@@ -322,21 +322,24 @@ nmi:
   bne jmp_rst_timer ; If count_frames is not 60, skip resetting it
   lda #$00 ; Reset count_frames to 0
   sta count_frames ; Store 0 in count_frames
-  jmp scroll_screen_check ; Jump to scroll_screen_check subroutine
+  ; jmp scroll_screen_check ; Jump to scroll_screen_check subroutine
   jmp_rst_timer: ; Skip resetting count_frames and prepare_sprites subroutine
   inc count_frames ; Increase count_frames by 1
 
   scroll_screen_check:
-  lda scroll_stage
-  cmp #0
-  beq skip_scroll_screen
+    lda pos_x_scroll
+    cmp #255
+    beq skip_scroll_screen
 
-  ; Scroll screen right 1px and player left 1px
-  lda pos_x_scroll
-  clc
-  adc #1
-  sta pos_x_scroll
-  jsr move_player_left
+    ; increment x ppu scroll
+    inc pos_x_scroll
+
+;   ; Scroll screen right 1px and player left 1px
+;   lda pos_x_scroll
+;   clc
+;   adc #1
+;   sta pos_x_scroll
+;   jsr move_player_left
 
   skip_scroll_screen:
   lda pos_x_scroll
