@@ -79,12 +79,12 @@ pad1: .res 1
 nametbl_ptr: .res 2
 curr_namtable: .res 2
 select_attr: .res 2
+megatiles_ptr: .res 2
 write_this_tile: .res 1
 decode_byte: .res 1
 curr_bits: .res 1
 pos_x_scroll: .res 1
 pos_y_scroll: .res 1
-megatiles_ptr: .res 2
 need_update_nametable: .res 1
 curr_stage_side: .res 1 ; 0 = left, 1 = right
 curr_stage: .res 1
